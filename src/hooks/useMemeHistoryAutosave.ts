@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MemeFilter, MemeSticker, TextBox } from '../types';
-import { saveMemeToHistory } from '../utils/memeStorage';
+import {
+  deleteMemeFromHistory,
+  getMemeHistory,
+  saveMemeToHistory,
+} from '../utils/memeStorage';
 import { generateMemeThumbnail } from '../utils/thumbnailGenerator';
 
 export interface MemeHistoryAutosaveSnapshot {
@@ -16,6 +20,15 @@ export interface MemeHistoryAutosaveSnapshot {
 interface UseMemeHistoryAutosaveOptions {
   currentSnapshot: MemeHistoryAutosaveSnapshot;
   debounceMs?: number;
+}
+
+const MAX_EDITABLE_HISTORY_STATES = 10;
+
+function trimHistoryToLimit() {
+  const history = getMemeHistory();
+  history.slice(MAX_EDITABLE_HISTORY_STATES).forEach((item) => {
+    deleteMemeFromHistory(item.id);
+  });
 }
 
 /**
@@ -73,6 +86,7 @@ export function useMemeHistoryAutosave({
         });
 
         if (!activeMemeIdRef.current) activeMemeIdRef.current = saved.id;
+        trimHistoryToLimit();
         setHistoryRefreshTrigger((previous) => previous + 1);
       } catch (err) {
         console.warn('History autosave error:', err);
