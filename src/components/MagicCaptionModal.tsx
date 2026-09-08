@@ -1,26 +1,7 @@
 import React, { useState } from 'react';
 import { CaptionSuggestion } from '../types';
-import {
-  Sparkles,
-  Check,
-  RefreshCw,
-  X,
-  Laugh,
-  MessageSquareQuote,
-  Flame,
-  Briefcase,
-  Zap,
-  Heart,
-  Terminal,
-  Coffee,
-  Brain,
-  Gamepad2,
-  HeartHandshake,
-  Film,
-  Dices,
-  Target,
-  Radio,
-} from 'lucide-react';
+import { AI_STYLES } from '../data/aiStyles';
+import { Sparkles, Check, RefreshCw, X, MessageSquareQuote } from 'lucide-react';
 
 interface MagicCaptionModalProps {
   isOpen: boolean;
@@ -35,22 +16,6 @@ interface MagicCaptionModalProps {
   onGenerate: () => void;
   onApplyCaption: (caption: CaptionSuggestion) => void;
 }
-
-const STYLES = [
-  { id: 'trending', label: 'Тренды / Вирусный', icon: Flame, desc: 'Острый интернет-юмор и актуальные ситуации' },
-  { id: 'roast', label: 'Подкол / Прожарка', icon: Target, desc: 'Язвительный, резкий юмор, высмеивающий суть изображения' },
-  { id: 'relatable', label: 'Жиза / Бытовуха', icon: Coffee, desc: 'То, что всех достало: пакет с пакетами, перфоратор в субботу, быт' },
-  { id: 'work', label: 'Work (Офис и IT)', icon: Briefcase, desc: 'Дедлайны, упавший прод, созвоны в Zoom, баги и Jira' },
-  { id: 'millennials', label: 'Миллениалы (Дети 90-х)', icon: Radio, desc: 'Карбид, еШки, заброшки, огород, картонка на горке, фишки и кассеты' },
-  { id: 'genz', label: 'Зумеры / Пост-ирония', icon: Laugh, desc: 'Абсурд, экзистенциальный кризис и тренды' },
-  { id: 'sarcastic', label: 'Сарказм / Ирония', icon: Zap, desc: 'Едкая ирония и беспощадная правда' },
-  { id: 'wholesome', label: 'Добро и милота', icon: Heart, desc: 'Поддерживающий, теплый и милый юмор' },
-  { id: 'philosophy', label: 'Ночные мысли', icon: Brain, desc: 'Экзистенциальные думы в 3 часа ночи' },
-  { id: 'gaming', label: 'Игры и гейминг', icon: Gamepad2, desc: 'Слитый рейтинг, сайд-квесты, лаги и тиммейты' },
-  { id: 'dating', label: 'Отношения', icon: HeartHandshake, desc: 'Ред флаги, переписки, намеки и неловкость' },
-  { id: 'cinema', label: 'Кино и драма', icon: Film, desc: 'Кинематографичный пафос и эпичные повороты' },
-  { id: 'absurd', label: 'Абсурд / Шитпостинг', icon: Dices, desc: 'Сюрреалистичный юмор и непредсказуемый панч' },
-];
 
 const LOADING_MESSAGES = [
   'Анализ выражений лиц и позы на изображении...',
@@ -76,7 +41,6 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
   const [appliedIndex, setAppliedIndex] = useState<number | null>(null);
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
 
-  // Rotate loading message
   React.useEffect(() => {
     if (!isLoading) return;
     const interval = setInterval(() => {
@@ -99,7 +63,6 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800/80 bg-neutral-900/90">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-neutral-950 shadow-md shadow-orange-500/20">
@@ -126,15 +89,13 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
           </button>
         </div>
 
-        {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Humor Style Selector */}
           <div>
             <label className="text-xs font-semibold text-neutral-300 uppercase tracking-wider block mb-2">
               Выберите стиль юмора
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {STYLES.map((style) => {
+              {AI_STYLES.map((style) => {
                 const Icon = style.icon;
                 const isSelected = selectedStyle === style.id;
                 return (
@@ -146,6 +107,7 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
                         ? 'border-amber-400 bg-amber-500/10 text-white shadow-sm'
                         : 'border-neutral-800 bg-neutral-950/40 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
                     }`}
+                    title={style.desc}
                   >
                     <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isSelected ? 'text-amber-400' : 'text-neutral-500'}`} />
                     <div>
@@ -158,7 +120,6 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
             </div>
           </div>
 
-          {/* Optional Prompt Guidance */}
           <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
@@ -180,14 +141,12 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
             </button>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300">
               {error}
             </div>
           )}
 
-          {/* Loading Animation */}
           {isLoading && (
             <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
               <div className="relative">
@@ -203,7 +162,6 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
             </div>
           )}
 
-          {/* 5 Suggested Captions List */}
           {!isLoading && captions.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -239,7 +197,6 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
                             </span>
                           </div>
 
-                          {/* Caption Preview Boxes */}
                           <div className="pt-2 pb-1 space-y-1">
                             {caption.topText && (
                               <div className="flex items-baseline gap-2">
@@ -257,7 +214,6 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
                             </div>
                           </div>
 
-                          {/* AI Visual Perception Badges (Mechanic, Contradiction, Detail, Mood) */}
                           {(caption.humorMechanic || caption.visualContradiction || caption.spottedDetail || caption.detectedMood) && (
                             <div className="pt-1 pb-1 flex flex-wrap gap-1.5 text-[10px]">
                               {caption.humorMechanic && (
@@ -293,13 +249,11 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
                             </p>
                           )}
 
-                          {/* Reason/Humor context */}
                           <p className="text-[11px] text-neutral-400 italic pt-1">
                             💡 {caption.explanation}
                           </p>
                         </div>
 
-                        {/* Apply Action */}
                         <div className="shrink-0 flex items-center pt-2">
                           <button
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
@@ -329,7 +283,6 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
             </div>
           )}
 
-          {/* Empty State before first generation */}
           {!isLoading && captions.length === 0 && !error && (
             <div className="py-8 text-center space-y-3">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto">
@@ -351,7 +304,6 @@ export const MagicCaptionModal: React.FC<MagicCaptionModalProps> = ({
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-3 bg-neutral-900 border-t border-neutral-800/80 flex items-center justify-between text-xs text-neutral-400">
           <span>Нажатие на подпись сразу накладывает ее на мем.</span>
           <button
