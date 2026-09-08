@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { MemeCanvas } from './components/MemeCanvas';
 import { MagicCaptionModal } from './components/MagicCaptionModal';
 import { CropZoomModal } from './components/CropZoomModal';
@@ -23,7 +23,6 @@ import {
   WebMemeItem,
   SavedMemeState,
 } from './types';
-import { getImagePayloadFromUrl } from './utils/imageHelper';
 import { MemeHistorySnapshot, useMemeUndoHistory } from './hooks/useMemeUndoHistory';
 import {
   MemeDraftSnapshot,
@@ -35,7 +34,8 @@ import {
   useMemeHistoryAutosave,
 } from './hooks/useMemeHistoryAutosave';
 import { useCompositionAnalysis } from './hooks/useCompositionAnalysis';
-import { Sparkles, CheckCircle, Crop, Undo2, Redo2, RotateCcw, Target } from 'lucide-react';
+import { useMagicCaptions } from './hooks/useMagicCaptions';
+import { CheckCircle } from 'lucide-react';
 
 export default function App() {
   // Active Meme Image & Original for Cropping Reset
@@ -95,36 +95,43 @@ export default function App() {
   const [filterIntensity, setFilterIntensity] = useState<number>(100);
   const [watermark, setWatermark] = useState<boolean>(false);
 
-  // Magic Caption / Замемить Modal & Generation State
   const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
-  const [captions, setCaptions] = useState<CaptionSuggestion[]>([]);
-  const [isGeneratingCaptions, setIsGeneratingCaptions] = useState(false);
-  const [captionError, setCaptionError] = useState<string | null>(null);
-  const [selectedStyle, setSelectedStyle] = useState<string>('trending');
-  const [customContext, setCustomContext] = useState<string>('');
-
-  // Crop & Zoom Modal State
   const [isCropOpen, setIsCropOpen] = useState(false);
-
-  // Composition Analysis & Guides State
   const [isCompositionModalOpen, setIsCompositionModalOpen] = useState(false);
   const [guideType, setGuideType] = useState<CompositionGuideType>('none');
-  const captionRequestInFlightRef = useRef(false);
-  const {
-    compositionAnalysis,
-    isAnalyzingComposition,
-    runCompositionAnalysis,
-  } = useCompositionAnalysis(activeImageSrc);
-
   const [notification, setNotification] = useState<string | null>(null);
-
-  // Single-screen Sidebar Tabs state
   const [rightTab, setRightTab] = useState<'all' | 'text' | 'suggestions'>('all');
 
   const showToast = useCallback((msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 2800);
   }, []);
+
+  const {
+    compositionAnalysis,
+    isAnalyzingComposition,
+    runCompositionAnalysis,
+  } = useCompositionAnalysis(activeImageSrc);
+
+  const handleCaptionsGenerated = useCallback(() => {
+    showToast('Готово! 5 вариантов мема предложены');
+  }, [showToast]);
+
+  const {
+    captions,
+    isGeneratingCaptions,
+    captionError,
+    selectedStyle,
+    setSelectedStyle,
+    customContext,
+    setCustomContext,
+    generateMagicCaptions,
+    clearCaptions,
+  } = useMagicCaptions({
+    activeImageSrc,
+    compositionAnalysis,
+    onGenerated: handleCaptionsGenerated,
+  });
 
   const applyHistorySnapshot = useCallback((targetState: MemeHistorySnapshot) => {
     setTextBoxes(targetState.textBoxes);
@@ -218,7 +225,7 @@ export default function App() {
     setFilterIntensity(saved.filterIntensity ?? 100);
     setWatermark(saved.watermark);
     setSelectedTemplateId(saved.templateId ?? null);
-    setCaptions([]);
+    clearCaptions();
 
     pushToHistory({
       textBoxes: saved.textBoxes,
@@ -228,7 +235,7 @@ export default function App() {
       watermark: saved.watermark,
       activeImageSrc: saved.imageSrc,
     });
-  }, [pushToHistory, setActiveMemeId]);
+  }, [clearCaptions, pushToHistory, setActiveMemeId]);
 
   // Select Web Template from Multi-Source Aggregator tab
   const handleSelectWebTemplate = useCallback((item: WebMemeItem) => {
@@ -236,7 +243,7 @@ export default function App() {
     setSelectedTemplateId(item.id);
     setActiveImageSrc(item.imageUrl);
     setOriginalImageSrc(item.imageUrl);
-    setCaptions([]);
+    clearCaptions();
 
     setTextBoxes((prev) => [
       {
@@ -268,7 +275,7 @@ export default function App() {
       watermark,
       activeImageSrc: item.imageUrl,
     });
-  }, [pushToHistory, textBoxes, stickers, filter, filterIntensity, watermark, startNewMeme]);
+  }, [clearCaptions, pushToHistory, textBoxes, stickers, filter, filterIntensity, watermark, startNewMeme]);
 
   // Switch Template from catalog
   const handleSelectTemplate = (template: MemeTemplate) => {
@@ -276,7 +283,7 @@ export default function App() {
     setSelectedTemplateId(template.id);
     setActiveImageSrc(template.url);
     setOriginalImageSrc(template.url);
-    setCaptions([]);
+    clearCaptions();
 
     setTextBoxes((prev) => [
       {
@@ -299,7 +306,7 @@ export default function App() {
     setSelectedTemplateId(template.id);
     setActiveImageSrc(template.url);
     setOriginalImageSrc(template.url);
-    setCaptions([]);
+    clearCaptions();
 
     setTextBoxes((prev) => [
       {
@@ -326,7 +333,7 @@ export default function App() {
         setActiveImageSrc(resultUrl);
         setOriginalImageSrc(resultUrl);
         setSelectedTemplateId(null);
-        setCaptions([]);
+        clearCaptions();
         showToast('Фото загружено! Нажмите «Замемить» для создания мема.');
       }
     };
@@ -376,68 +383,11 @@ export default function App() {
     showToast('Текст оптимизирован под композицию кадра!');
   };
 
-  // Generate captions with Gemini
-  const generateMagicCaptions = useCallback(async (overrideStyle?: string) => {
-    if (captionRequestInFlightRef.current) return;
-    captionRequestInFlightRef.current = true;
-    setIsGeneratingCaptions(true);
-    setCaptionError(null);
-
-    const styleToUse = typeof overrideStyle === 'string' && overrideStyle ? overrideStyle : selectedStyle;
-
-    try {
-      const imagePayload = await getImagePayloadFromUrl(activeImageSrc);
-      if (!imagePayload) throw new Error('Не удалось подготовить изображение для анализа.');
-
-      const compositionPayload = compositionAnalysis ? {
-        detectedStyle: compositionAnalysis.detectedStyle,
-        balanceAssessment: compositionAnalysis.balanceAssessment,
-        focalSubjects: compositionAnalysis.focalSubjects?.map((s) => ({
-          name: s.name,
-          role: s.role,
-          gazeDirection: s.gazeDirection,
-          description: s.description,
-        })),
-        recommendations: compositionAnalysis.recommendations?.slice(0, 3),
-      } : undefined;
-
-      const res = await fetch('/api/magic-caption', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: imagePayload.dataUrl,
-          mimeType: imagePayload.mimeType,
-          style: styleToUse,
-          customContext: customContext.trim(),
-          compositionContext: compositionPayload,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Ошибка при генерации подписей.');
-      }
-
-      if (data.captions && Array.isArray(data.captions)) {
-        setCaptions(data.captions);
-        showToast('Готово! 5 вариантов мема предложены');
-      } else {
-        throw new Error('Получен некорректный ответ от модели.');
-      }
-    } catch (err: any) {
-      setCaptionError(err?.message || 'Не удалось получить подписи от ИИ. Попробуйте еще раз.');
-    } finally {
-      captionRequestInFlightRef.current = false;
-      setIsGeneratingCaptions(false);
-    }
-  }, [activeImageSrc, selectedStyle, customContext, compositionAnalysis, showToast]);
-
   // Open AI Suggestions panel & trigger generation
   const handleOpenMagicCaptions = () => {
     setRightTab('suggestions');
     if (captions.length === 0 && !isGeneratingCaptions) {
-      generateMagicCaptions();
+      void generateMagicCaptions();
     }
   };
 
@@ -573,7 +523,6 @@ export default function App() {
       {/* Studio Header with MEMENATOR branding & Watermelon Mascot */}
       <header className="h-14 sm:h-16 border-b border-neutral-800/80 bg-neutral-950/95 backdrop-blur px-3 sm:px-5 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-3">
-          {/* Custom Watermelon Meme Mascot Logo */}
           <div className="relative flex items-center justify-center shrink-0">
             <WatermelonLogo size={42} />
           </div>
@@ -588,13 +537,11 @@ export default function App() {
           </div>
         </div>
 
-        {/* Center Quick Autosave Badge */}
         <div className="hidden md:flex items-center gap-2 text-xs text-neutral-400 bg-neutral-900/60 border border-neutral-800/60 px-3 py-1 rounded-full">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
           <span>Автосохранение активно</span>
         </div>
 
-        {/* Right Header Status Tag */}
         <div className="flex items-center gap-2 text-xs text-neutral-400">
           <span className="hidden lg:inline text-neutral-500 text-[11px] font-semibold">
             Холст в центре • ИИ справа
@@ -602,11 +549,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Workspace Layout - strictly single screen fitting viewport without vertical page scroll */}
       <main className="flex-1 min-h-0 w-full px-2 sm:px-3 py-2 grid grid-cols-12 gap-2 sm:gap-2.5 items-stretch overflow-hidden">
-        {/* COLUMN 1 (LEFT SIDEBAR): 3 Dedicated Blocks (40% Random Memes / 20% History & Favs / 40% Stickers & Filters) */}
         <aside className="col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col gap-2 overflow-hidden pr-0.5">
-          {/* Block 1 (Top 40%): Случайные Мемы (6 мемов с поиском и костью) */}
           <div className="h-[40%] min-h-0 flex flex-col shrink-0">
             <RandomMemesPanel
               onSelectWebTemplate={handleSelectWebTemplate}
@@ -616,7 +560,6 @@ export default function App() {
             />
           </div>
 
-          {/* Block 2 (Middle 20%): История и Избранное (3 последних мема) */}
           <div className="h-[20%] min-h-0 flex flex-col shrink-0">
             <HistoryAndFavoritesPanel
               onRestoreMeme={handleRestoreMeme}
@@ -626,7 +569,6 @@ export default function App() {
             />
           </div>
 
-          {/* Block 3 (Bottom 40%): Фильтры и Наклейки */}
           <div className="h-[40%] min-h-0 flex flex-col flex-1">
             <StickersAndFilters
               filter={filter}
@@ -642,9 +584,7 @@ export default function App() {
           </div>
         </aside>
 
-        {/* COLUMN 2 (CENTER CANVAS - ЦЕНТР): Upload Bar, Text Input Bar (Pink), Canvas, Text Style Bar (Green) */}
         <section className="col-span-12 lg:col-span-6 h-full min-h-0 flex flex-col items-center justify-between gap-1.5 overflow-hidden">
-          {/* Dedicated Compact Image Upload Bar */}
           <div className="w-full shrink-0">
             <ImageUploadBar
               onUploadImage={handleUploadImage}
@@ -653,7 +593,6 @@ export default function App() {
             />
           </div>
 
-          {/* PINK BOX: Text Inputs Bar (Above Canvas) */}
           <div className="w-full shrink-0">
             <MemeTextInputBar
               textBoxes={textBoxes}
@@ -666,7 +605,6 @@ export default function App() {
             />
           </div>
 
-          {/* Interactive Meme Canvas taking the prime central area */}
           <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center">
             <MemeCanvas
               imageSrc={activeImageSrc}
@@ -699,7 +637,6 @@ export default function App() {
             />
           </div>
 
-          {/* GREEN BOX: Text Styling Bar (Below Canvas) */}
           <div className="w-full shrink-0">
             <MemeTextStyleBar
               textBoxes={textBoxes}
@@ -709,7 +646,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* COLUMN 3 (RIGHT SIDEBAR): Dedicated AI Meme Generator elevated directly to the top */}
         <aside className="col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col pl-0.5">
           <SuggestedMemesPanel
             captions={captions}
@@ -717,9 +653,9 @@ export default function App() {
             onGenerate={(overrideStyle) => generateMagicCaptions(overrideStyle)}
             onApplyCaption={handleApplyCaption}
             selectedStyle={selectedStyle}
-            onSelectStyle={(st) => {
-              setSelectedStyle(st);
-              generateMagicCaptions(st);
+            onSelectStyle={(style) => {
+              setSelectedStyle(style);
+              void generateMagicCaptions(style);
             }}
             customContext={customContext}
             onCustomContextChange={setCustomContext}
@@ -728,7 +664,6 @@ export default function App() {
         </aside>
       </main>
 
-      {/* Magic Caption / Замемить Modal Dialog for Advanced Controls */}
       <MagicCaptionModal
         isOpen={isMagicModalOpen}
         onClose={() => setIsMagicModalOpen(false)}
@@ -743,7 +678,6 @@ export default function App() {
         onApplyCaption={handleApplyCaption}
       />
 
-      {/* Crop & Zoom Modal Dialog */}
       <CropZoomModal
         isOpen={isCropOpen}
         onClose={() => setIsCropOpen(false)}
@@ -753,7 +687,6 @@ export default function App() {
         onResetOriginal={handleResetOriginalImage}
       />
 
-      {/* Intelligent Composition Analysis Modal */}
       <CompositionAnalysisModal
         isOpen={isCompositionModalOpen}
         onClose={() => setIsCompositionModalOpen(false)}
