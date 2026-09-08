@@ -31,33 +31,22 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
   const handleApply = (caption: CaptionSuggestion, index: number) => {
     setAppliedIndex(index);
     onApplyCaption(caption);
-    setTimeout(() => {
-      setAppliedIndex(null);
-    }, 1500);
-  };
-
-  const handleStyleClick = (styleId: string) => {
-    // App owns the style-change side effect and triggers exactly one generation request.
-    // Keeping generation in one place prevents duplicate Gemini calls per click.
-    onSelectStyle(styleId);
+    setTimeout(() => setAppliedIndex(null), 1500);
   };
 
   return (
     <div className="bg-neutral-900/90 border border-amber-500/30 rounded-3xl p-3.5 sm:p-4 backdrop-blur shadow-xl w-full h-full flex flex-col min-h-0 gap-3">
-      {/* Header with Title & Action */}
       <div className="flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-neutral-950 font-black text-xs shadow-sm">
             ⚡
           </div>
-          <div>
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-              <span>Замемить с ИИ</span>
-              <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                Gemini
-              </span>
-            </h3>
-          </div>
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+            <span>Замемить с ИИ</span>
+            <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">
+              Gemini
+            </span>
+          </h3>
         </div>
 
         <div className="flex items-center gap-1">
@@ -77,17 +66,14 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 text-neutral-950 hover:brightness-110 active:scale-95 transition shadow-sm cursor-pointer disabled:opacity-50"
           >
             <Sparkles className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>{isLoading ? 'Анализ...' : 'Еще 5 вариантов'}</span>
+            <span>{isLoading ? 'Анализ...' : 'Еще 3 варианта'}</span>
           </button>
         </div>
       </div>
 
-      {/* STYLES SELECTOR (SIMPLIFIED COMPACT GRID) */}
       <div className="space-y-1.5 shrink-0">
         <div className="flex items-center justify-between text-[10px]">
-          <span className="text-neutral-400 font-bold uppercase tracking-wider">
-            Стиль юмора:
-          </span>
+          <span className="text-neutral-400 font-bold uppercase tracking-wider">Стиль юмора:</span>
           <span className="text-amber-400 font-medium">
             {getAiStyle(selectedStyle)?.compactLabel || 'Тренды'}
           </span>
@@ -100,7 +86,7 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
             return (
               <button
                 key={style.id}
-                onClick={() => handleStyleClick(style.id)}
+                onClick={() => onSelectStyle(style.id)}
                 className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl border text-left transition cursor-pointer ${
                   isSelected
                     ? 'border-amber-400 bg-amber-500/20 text-white font-bold shadow-sm'
@@ -108,11 +94,7 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
                 }`}
                 title={style.desc}
               >
-                <Icon
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    isSelected ? 'text-amber-400' : 'text-neutral-400'
-                  }`}
-                />
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-amber-400' : 'text-neutral-400'}`} />
                 <span className="truncate">{style.compactLabel}</span>
               </button>
             );
@@ -120,22 +102,19 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
         </div>
       </div>
 
-      {/* OPTIONAL THEME CONTEXT INPUT */}
       {onCustomContextChange && (
         <div className="relative shrink-0">
           <input
             type="text"
             value={customContext}
-            onChange={(e) => onCustomContextChange(e.target.value)}
-            placeholder="Укажите тему (например, 'понедельник', 'сессия', 'деплой')..."
+            onChange={(event) => onCustomContextChange(event.target.value)}
+            placeholder="Укажите тему, если она действительно нужна..."
             className="w-full bg-neutral-950/80 border border-neutral-800 rounded-xl px-3 py-1.5 text-xs text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:border-amber-400/80 transition"
           />
         </div>
       )}
 
-      {/* MAIN CONTENT AREA: Stretches all the way down */}
       <div className="flex-1 min-h-0 flex flex-col">
-        {/* LOADING STATE */}
         {isLoading && (
           <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6 rounded-2xl border border-amber-500/30 bg-amber-500/5 text-center space-y-3 animate-pulse">
             <Sparkles className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
@@ -143,12 +122,11 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
               ИИ изучает детали, настроение и противоречия на фото...
             </p>
             <p className="text-[11px] text-neutral-400">
-              Подбираем 5 свежих вирусных панчлайнов
+              Отбираем 3 наиболее сильных и непохожих варианта
             </p>
           </div>
         )}
 
-        {/* EMPTY STATE */}
         {captions.length === 0 && !isLoading && (
           <div className="flex-1 min-h-0 flex flex-col justify-between p-4 sm:p-5 rounded-2xl border border-dashed border-neutral-800 bg-neutral-950/40 text-center">
             <div className="space-y-3 my-auto">
@@ -156,19 +134,14 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
                 <Sparkles className="w-6 h-6 text-amber-400" />
               </div>
               <div className="space-y-1">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Генератор мемов Gemini
-                </h4>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Генератор мемов Gemini</h4>
                 <p className="text-[11px] text-neutral-300 max-w-xs mx-auto leading-relaxed">
-                  Нажмите <strong className="text-amber-400 font-semibold">«Еще 5 вариантов»</strong>, чтобы Gemini нашел забавные детали на картинке и придумал остроумные подписи.
+                  Нажмите <strong className="text-amber-400 font-semibold">«Еще 3 варианта»</strong>. MEMENATOR отберет самые релевантные и наименее похожие друг на друга идеи.
                 </p>
               </div>
 
-              {/* Quick Topic Prompts */}
               <div className="space-y-1.5 pt-2">
-                <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">
-                  Быстрые темы:
-                </span>
+                <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Быстрые темы:</span>
                 <div className="flex flex-wrap justify-center gap-1.5">
                   {['Понедельник', 'Сессия', 'Работа / IT', 'Зарплата', 'Отношения', 'Кот'].map((topic) => (
                     <button
@@ -192,38 +165,35 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
               className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-amber-400 text-neutral-950 hover:bg-amber-300 active:scale-98 transition cursor-pointer shadow-md flex items-center justify-center gap-2 mt-2 shrink-0"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Сгенерировать мемы</span>
+              <span>Сгенерировать 3 идеи</span>
             </button>
           </div>
         )}
 
-        {/* 5 AI MEME CAPTION CARDS */}
         {captions.length > 0 && !isLoading && (
           <div className="flex-1 min-h-0 flex flex-col space-y-2">
             <div className="flex items-center justify-between text-[10px] text-neutral-400 px-0.5 shrink-0">
-              <span>5 вариантов подписей от ИИ:</span>
+              <span>{captions.length} отобранных варианта от ИИ:</span>
               <span className="text-amber-400 font-bold">Клик для применения</span>
             </div>
 
             <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
-              {captions.map((caption, idx) => {
-                const isApplied = appliedIndex === idx;
-
+              {captions.map((caption, index) => {
+                const isApplied = appliedIndex === index;
                 return (
                   <div
-                    key={idx}
-                    onClick={() => handleApply(caption, idx)}
+                    key={`${caption.headline}-${index}`}
+                    onClick={() => handleApply(caption, index)}
                     className={`p-3 rounded-2xl border transition-all cursor-pointer text-left space-y-1.5 relative group ${
                       isApplied
                         ? 'border-emerald-400 bg-emerald-500/10 shadow-lg'
                         : 'border-neutral-800 bg-neutral-950/70 hover:border-amber-400/60 hover:bg-neutral-950'
                     }`}
                   >
-                    {/* Card Header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-400 text-neutral-950 uppercase tracking-wider">
-                          Вариант #{idx + 1}
+                          Вариант #{index + 1}
                         </span>
                         <span className="text-xs font-bold text-white truncate max-w-[170px]">
                           {caption.headline || 'Панчлайн'}
@@ -239,42 +209,28 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
                         }`}
                       >
                         {isApplied ? (
-                          <>
-                            <Check className="w-3 h-3" />
-                            <span>Наложено!</span>
-                          </>
+                          <><Check className="w-3 h-3" /><span>Наложено!</span></>
                         ) : (
                           <span>Выбрать</span>
                         )}
                       </button>
                     </div>
 
-                    {/* Top and Bottom lines preview */}
                     <div className="space-y-1 text-xs">
                       {caption.topText && (
                         <div className="flex items-start gap-1 bg-neutral-900/80 px-2 py-1 rounded-lg border border-neutral-800/60">
-                          <span className="text-[9px] font-bold text-neutral-400 uppercase shrink-0 pt-0.5">
-                            Верх:
-                          </span>
-                          <span className="font-semibold text-neutral-100 line-clamp-2">
-                            "{caption.topText}"
-                          </span>
+                          <span className="text-[9px] font-bold text-neutral-400 uppercase shrink-0 pt-0.5">Верх:</span>
+                          <span className="font-semibold text-neutral-100 line-clamp-2">"{caption.topText}"</span>
                         </div>
                       )}
-
                       {caption.bottomText && (
                         <div className="flex items-start gap-1 bg-neutral-900/80 px-2 py-1 rounded-lg border border-neutral-800/60">
-                          <span className="text-[9px] font-bold text-amber-400 uppercase shrink-0 pt-0.5">
-                            Низ:
-                          </span>
-                          <span className="font-semibold text-amber-300 line-clamp-2">
-                            "{caption.bottomText}"
-                          </span>
+                          <span className="text-[9px] font-bold text-amber-400 uppercase shrink-0 pt-0.5">Низ:</span>
+                          <span className="font-semibold text-amber-300 line-clamp-2">"{caption.bottomText}"</span>
                         </div>
                       )}
                     </div>
 
-                    {/* Insight Badges: Mechanic & Visual Details */}
                     <div className="flex flex-wrap items-center gap-1 text-[10px] pt-0.5">
                       {caption.humorMechanic && (
                         <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium shrink-0">
