@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Crop, ZoomIn, ZoomOut, RotateCcw, Check, X, Maximize2, Move } from 'lucide-react';
+import { Crop, RotateCcw, Check, X, Move } from 'lucide-react';
 
 interface CropZoomModalProps {
   isOpen: boolean;
@@ -20,20 +20,18 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
   onApplyCrop,
   onResetOriginal,
 }) => {
-  // Zoom & Pan state
+  // Zoom state is currently represented by changing the crop rectangle size.
   const [zoom, setZoom] = useState<number>(1);
-  const [panX, setPanX] = useState<number>(0);
-  const [panY, setPanY] = useState<number>(0);
   const [aspectRatio, setAspectRatio] = useState<AspectRatioOption>('free');
 
   // Crop box in percentages (0 - 100)
   const [cropBox, setCropBox] = useState({ x: 10, y: 10, width: 80, height: 80 });
   const [isDraggingBox, setIsDraggingBox] = useState(false);
   const [isResizingCorner, setIsResizingCorner] = useState<string | null>(null);
+  const [activePointerId, setActivePointerId] = useState<number | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, boxX: 10, boxY: 10, boxW: 80, boxH: 80 });
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const getImageAspect = () => {
@@ -72,10 +70,11 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setZoom(1);
-      setPanX(0);
-      setPanY(0);
       setCropBox({ x: 10, y: 10, width: 80, height: 80 });
       setAspectRatio('free');
+      setIsDraggingBox(false);
+      setIsResizingCorner(null);
+      setActivePointerId(null);
     }
   }, [isOpen, imageSrc]);
 
@@ -95,10 +94,18 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
     });
   };
 
-  // Dragging the crop region box
-  const handleBoxMouseDown = (e: React.MouseEvent) => {
+  const canStartPointerInteraction = (e: React.PointerEvent) =>
+    e.isPrimary && (e.pointerType !== 'mouse' || e.button === 0);
+
+  // Pointer Events provide one interaction path for mouse, touch and stylus.
+  const handleBoxPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!canStartPointerInteraction(e)) return;
     e.stopPropagation();
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setActivePointerId(e.pointerId);
     setIsDraggingBox(true);
+    setIsResizingCorner(null);
     setDragStart({
       x: e.clientX,
       y: e.clientY,
@@ -110,8 +117,13 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
   };
 
   // Corner resize handler
-  const handleCornerMouseDown = (e: React.MouseEvent, corner: string) => {
+  const handleCornerPointerDown = (e: React.PointerEvent<HTMLDivElement>, corner: string) => {
+    if (!canStartPointerInteraction(e)) return;
     e.stopPropagation();
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setActivePointerId(e.pointerId);
+    setIsDraggingBox(false);
     setIsResizingCorner(corner);
     setDragStart({
       x: e.clientX,
@@ -124,9 +136,11 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
   };
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
+    const handlePointerMove = (e: PointerEvent) => {
+      if (activePointerId === null || e.pointerId !== activePointerId || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
       const deltaXPercent = ((e.clientX - dragStart.x) / rect.width) * 100;
       const deltaYPercent = ((e.clientY - dragStart.y) / rect.height) * 100;
 
@@ -161,21 +175,25 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
       }
     };
 
-    const handleMouseUp = () => {
+    const handlePointerEnd = (e: PointerEvent) => {
+      if (activePointerId === null || e.pointerId !== activePointerId) return;
       setIsDraggingBox(false);
       setIsResizingCorner(null);
+      setActivePointerId(null);
     };
 
-    if (isDraggingBox || isResizingCorner) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+    if (activePointerId !== null && (isDraggingBox || isResizingCorner)) {
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerEnd);
+      window.addEventListener('pointercancel', handlePointerEnd);
     }
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
     };
-  }, [isDraggingBox, isResizingCorner, dragStart, cropBox.width, cropBox.height, aspectRatio]);
+  }, [activePointerId, isDraggingBox, isResizingCorner, dragStart, cropBox.width, cropBox.height, aspectRatio]);
 
   // Apply Crop: Renders sub-rectangle into clean high-res canvas
   const handleApply = () => {
@@ -299,28 +317,28 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
               <span className="text-xs text-neutral-400 font-semibold mr-1">Зум детали:</span>
               <button
                 onClick={() => handleQuickZoom(1)}
-                className="px-2 py-1 text-xs rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-medium transition cursor-pointer"
+                className={`px-2 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${zoom === 1 ? 'bg-amber-400 text-neutral-950 font-bold' : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'}`}
                 title="Оригинал 100%"
               >
                 100%
               </button>
               <button
                 onClick={() => handleQuickZoom(1.5)}
-                className="px-2 py-1 text-xs rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-medium transition cursor-pointer"
+                className={`px-2 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${zoom === 1.5 ? 'bg-amber-400 text-neutral-950 font-bold' : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'}`}
                 title="Приблизить 150%"
               >
                 1.5x
               </button>
               <button
                 onClick={() => handleQuickZoom(2)}
-                className="px-2 py-1 text-xs rounded-lg bg-neutral-800 hover:bg-neutral-700 text-amber-300 font-medium transition cursor-pointer"
+                className={`px-2 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${zoom === 2 ? 'bg-amber-400 text-neutral-950 font-bold' : 'bg-neutral-800 hover:bg-neutral-700 text-amber-300'}`}
                 title="Крупный план 200%"
               >
                 2.0x 🔍
               </button>
               <button
                 onClick={() => handleQuickZoom(2.8)}
-                className="px-2 py-1 text-xs rounded-lg bg-neutral-800 hover:bg-neutral-700 text-amber-400 font-bold transition cursor-pointer"
+                className={`px-2 py-1 text-xs rounded-lg font-bold transition cursor-pointer ${zoom === 2.8 ? 'bg-amber-400 text-neutral-950' : 'bg-neutral-800 hover:bg-neutral-700 text-amber-400'}`}
                 title="Максимальный фокус"
               >
                 2.8x 🔥
@@ -356,14 +374,15 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
 
               {/* The Draggable / Resizable Crop Box */}
               <div
-                onMouseDown={handleBoxMouseDown}
+                onPointerDown={handleBoxPointerDown}
                 style={{
                   left: `${cropBox.x}%`,
                   top: `${cropBox.y}%`,
                   width: `${cropBox.width}%`,
                   height: `${cropBox.height}%`,
+                  touchAction: 'none',
                 }}
-                className="absolute border-2 border-amber-400 shadow-xl cursor-move bg-amber-400/5 group"
+                className="absolute border-2 border-amber-400 shadow-xl cursor-move bg-amber-400/5 group select-none"
               >
                 {/* Center Move Indicator */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -375,14 +394,18 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
 
                 {/* Top-Left Corner Resize Handle */}
                 <div
-                  onMouseDown={(e) => handleCornerMouseDown(e, 'tl')}
-                  className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-amber-400 rounded-sm border-2 border-neutral-900 cursor-nwse-resize hover:scale-125 transition-transform"
+                  onPointerDown={(e) => handleCornerPointerDown(e, 'tl')}
+                  style={{ touchAction: 'none' }}
+                  className="absolute -top-2 -left-2 w-5 h-5 bg-amber-400 rounded-md border-2 border-neutral-900 cursor-nwse-resize hover:scale-110 transition-transform"
+                  aria-label="Изменить размер области обрезки от верхнего левого угла"
                 />
 
                 {/* Bottom-Right Corner Resize Handle */}
                 <div
-                  onMouseDown={(e) => handleCornerMouseDown(e, 'br')}
-                  className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-amber-400 rounded-sm border-2 border-neutral-900 cursor-nwse-resize hover:scale-125 transition-transform"
+                  onPointerDown={(e) => handleCornerPointerDown(e, 'br')}
+                  style={{ touchAction: 'none' }}
+                  className="absolute -bottom-2 -right-2 w-5 h-5 bg-amber-400 rounded-md border-2 border-neutral-900 cursor-nwse-resize hover:scale-110 transition-transform"
+                  aria-label="Изменить размер области обрезки от нижнего правого угла"
                 />
 
                 {/* Grid Overlay inside crop box (Rule of Thirds) */}
@@ -402,7 +425,7 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
           </div>
 
           <p className="text-[11px] text-neutral-400 text-center">
-            💡 Перетаскивайте рамку за центр или тяните за угловые маркеры, чтобы выбрать нужный фрагмент (лицо, реакцию или деталь).
+            💡 Перетаскивайте рамку мышью, пальцем или стилусом; угловые маркеры меняют размер выбранного фрагмента.
           </p>
         </div>
 
