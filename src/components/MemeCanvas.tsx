@@ -367,7 +367,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
     }
 
     // Force pristine re-render before export
-    drawMemeOnCanvas(canvas, loadedImage, textBoxes, stickers, filter, watermark);
+    drawMemeOnCanvas(canvas, loadedImage, textBoxes, stickers, filter, watermark, filterIntensity);
 
     const mime = downloadFormat === 'png' ? 'image/png' : 'image/jpeg';
     const quality = downloadFormat === 'jpeg' ? 0.95 : undefined;
@@ -390,7 +390,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
       } catch {}
     }
 
-    drawMemeOnCanvas(canvas, loadedImage, textBoxes, stickers, filter, watermark);
+    drawMemeOnCanvas(canvas, loadedImage, textBoxes, stickers, filter, watermark, filterIntensity);
 
     try {
       canvas.toBlob(async (blob) => {

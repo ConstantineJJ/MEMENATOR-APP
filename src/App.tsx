@@ -24,7 +24,7 @@ import {
   WebMemeItem,
   SavedMemeState,
 } from './types';
-import { getBase64FromImageUrl } from './utils/imageHelper';
+import { getImagePayloadFromUrl } from './utils/imageHelper';
 import { saveMemeToHistory } from './utils/memeStorage';
 import { generateMemeThumbnail } from './utils/thumbnailGenerator';
 import { Sparkles, CheckCircle, Crop, Undo2, Redo2, RotateCcw, Target } from 'lucide-react';
@@ -119,6 +119,9 @@ export default function App() {
   const [history, setHistory] = useState<HistoryState[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const isUndoRedoAction = useRef(false);
+  const lastPushedRef = useRef<string>('');
+  const lastAnalyzedSrcRef = useRef<string>('');
+  const captionRequestInFlightRef = useRef(false);
 
   // Autosave status indicator
   const [isDraftSaved, setIsDraftSaved] = useState(false);
@@ -166,13 +169,13 @@ export default function App() {
         watermark,
         activeImageSrc,
       };
+      lastPushedRef.current = JSON.stringify(initialState);
       setHistory([initialState]);
       setHistoryIndex(0);
     }
   }, []);
 
   // Record history on meaningful changes (debounced)
-  const lastPushedRef = useRef<string>('');
   useEffect(() => {
     if (isUndoRedoAction.current) {
       isUndoRedoAction.current = false;
@@ -249,6 +252,7 @@ export default function App() {
 
   // Autosave Draft to localStorage
   useEffect(() => {
+    setIsDraftSaved(false);
     const timer = setTimeout(() => {
       try {
         const draft = {
@@ -466,14 +470,12 @@ export default function App() {
   // Crop Handlers
   const handleApplyCrop = (croppedDataUrl: string) => {
     setActiveImageSrc(croppedDataUrl);
-    runCompositionAnalysis(croppedDataUrl);
     showToast('Кадрирование успешно применено!');
   };
 
   const handleResetOriginalImage = () => {
     if (originalImageSrc) {
       setActiveImageSrc(originalImageSrc);
-      runCompositionAnalysis(originalImageSrc);
       showToast('Исходное фото восстановлено!');
     }
   };
@@ -485,18 +487,18 @@ export default function App() {
 
     setIsAnalyzingComposition(true);
     try {
-      const base64 = await getBase64FromImageUrl(srcToUse);
-      if (!base64) {
+      const imagePayload = await getImagePayloadFromUrl(srcToUse);
+      if (!imagePayload) {
         return;
       }
       const res = await fetch('/api/analyze-composition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageBase64: base64,
-          mimeType: 'image/jpeg',
-          width: 600,
-          height: 600,
+          imageBase64: imagePayload.dataUrl,
+          mimeType: imagePayload.mimeType,
+          width: imagePayload.width,
+          height: imagePayload.height,
         }),
       });
 
@@ -515,8 +517,10 @@ export default function App() {
     }
   }, [activeImageSrc]);
 
-  // Run analysis when activeImageSrc changes
+  // Run analysis once per image source change; avoid StrictMode duplicate quota use.
   useEffect(() => {
+    if (!activeImageSrc || lastAnalyzedSrcRef.current === activeImageSrc) return;
+    lastAnalyzedSrcRef.current = activeImageSrc;
     runCompositionAnalysis(activeImageSrc);
   }, [activeImageSrc, runCompositionAnalysis]);
 
@@ -552,13 +556,16 @@ export default function App() {
 
   // Generate captions with Gemini
   const generateMagicCaptions = useCallback(async (overrideStyle?: string) => {
+    if (captionRequestInFlightRef.current) return;
+    captionRequestInFlightRef.current = true;
     setIsGeneratingCaptions(true);
     setCaptionError(null);
 
     const styleToUse = typeof overrideStyle === 'string' && overrideStyle ? overrideStyle : selectedStyle;
 
     try {
-      const base64 = await getBase64FromImageUrl(activeImageSrc);
+      const imagePayload = await getImagePayloadFromUrl(activeImageSrc);
+      if (!imagePayload) throw new Error('Не удалось подготовить изображение для анализа.');
 
       const compositionPayload = compositionAnalysis ? {
         detectedStyle: compositionAnalysis.detectedStyle,
@@ -576,7 +583,8 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageBase64: base64,
+          imageBase64: imagePayload.dataUrl,
+          mimeType: imagePayload.mimeType,
           style: styleToUse,
           customContext: customContext.trim(),
           compositionContext: compositionPayload,
@@ -598,6 +606,7 @@ export default function App() {
     } catch (err: any) {
       setCaptionError(err?.message || 'Не удалось получить подписи от ИИ. Попробуйте еще раз.');
     } finally {
+      captionRequestInFlightRef.current = false;
       setIsGeneratingCaptions(false);
     }
   }, [activeImageSrc, selectedStyle, customContext, compositionAnalysis]);
