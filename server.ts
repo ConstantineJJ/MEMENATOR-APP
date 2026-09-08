@@ -4,6 +4,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { proxyExternalImage } from './server/imageProxy';
 import { registerCompositionRoute } from './server/routes/composition';
+import { registerEnglishMagicCaptionRoute } from './server/routes/magicCaptionEnglish';
 import { registerMagicCaptionRoute } from './server/routes/magicCaption';
 import { registerTemplateImageRoute } from './server/routes/templateImage';
 import { registerWebMemeRoutes } from './server/routes/webMemes';
@@ -24,6 +25,9 @@ async function startServer() {
 
   app.get('/api/proxy-image', proxyExternalImage);
   registerWebMemeRoutes(app);
+  // English requests are handled first. Other languages fall through to the
+  // existing Russian route, keeping the established RU behavior unchanged.
+  registerEnglishMagicCaptionRoute(app);
   registerMagicCaptionRoute(app);
   registerCompositionRoute(app);
   registerTemplateImageRoute(app);
