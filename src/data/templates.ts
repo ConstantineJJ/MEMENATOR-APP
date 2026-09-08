@@ -1,6 +1,6 @@
 import { MemeTemplate } from '../types';
 
-export const TRENDING_TEMPLATES: MemeTemplate[] = [
+export const TRENDING_TEMPLATES: [MemeTemplate, ...MemeTemplate[]] = [
   {
     id: 'distracted-bf',
     name: 'Неверный парень (Distracted Boyfriend)',

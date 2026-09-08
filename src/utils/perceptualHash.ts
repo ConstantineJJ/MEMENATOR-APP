@@ -75,9 +75,9 @@ function imageToDHash(image: HTMLImageElement): string {
   const grayscale = new Uint8Array(HASH_WIDTH * HASH_HEIGHT);
   for (let i = 0; i < grayscale.length; i += 1) {
     const offset = i * 4;
-    const r = rgba[offset];
-    const g = rgba[offset + 1];
-    const b = rgba[offset + 2];
+    const r = rgba[offset] ?? 0;
+    const g = rgba[offset + 1] ?? 0;
+    const b = rgba[offset + 2] ?? 0;
     grayscale[i] = Math.round((299 * r + 587 * g + 114 * b) / 1000);
   }
 
@@ -124,16 +124,23 @@ async function hashUrl(url: string, timeoutMs: number): Promise<string> {
 
 /**
  * Computes a 64-bit difference hash from the actual image pixels.
- * We try the thumbnail directly first to avoid unnecessary backend traffic.
- * If cross-origin canvas access is blocked, the existing hardened image proxy
- * is used as a safe fallback.
+ * External provider images are requested through the hardened same-origin proxy first,
+ * avoiding the common CORS/tainted-canvas failure path in embedded previews. If the
+ * proxy is temporarily unavailable, a direct request remains as a best-effort fallback.
  */
 export async function computePerceptualHashForUrl(url: string, timeoutMs = 3500): Promise<string> {
+  if (!isExternalHttpUrl(url)) {
+    return hashUrl(url, timeoutMs);
+  }
+
+  const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
   try {
-    return await hashUrl(url, timeoutMs);
-  } catch (directError) {
-    if (!isExternalHttpUrl(url)) throw directError;
-    const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
-    return hashUrl(proxyUrl, timeoutMs);
+    return await hashUrl(proxyUrl, timeoutMs);
+  } catch (proxyError) {
+    try {
+      return await hashUrl(url, timeoutMs);
+    } catch {
+      throw proxyError;
+    }
   }
 }

@@ -119,7 +119,7 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
 
   const currentStyleDef = useMemo(() => getAiStyle(selectedStyle), [selectedStyle]);
   const stylePresets = useMemo(() => {
-    return STYLE_PROMPT_PRESETS[selectedStyle] || STYLE_PROMPT_PRESETS.trending;
+    return STYLE_PROMPT_PRESETS[selectedStyle] ?? STYLE_PROMPT_PRESETS.trending ?? [];
   }, [selectedStyle]);
 
   const StyleIcon = STYLE_ICONS[selectedStyle] || Wand2;
@@ -238,7 +238,7 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                   type="button"
                   onClick={() => {
                     const rand = RANDOM_MEME_PROMPTS[Math.floor(Math.random() * RANDOM_MEME_PROMPTS.length)];
-                    setPrompt(rand);
+                    if (rand) setPrompt(rand);
                   }}
                   className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 font-semibold"
                 >

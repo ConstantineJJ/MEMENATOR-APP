@@ -25,11 +25,10 @@ export function wrapText(
       continue;
     }
 
-    const words = rawLine.split(' ');
-    let currentLine = words[0];
+    const [firstWord = '', ...remainingWords] = rawLine.split(' ');
+    let currentLine = firstWord;
 
-    for (let i = 1; i < words.length; i++) {
-      const word = words[i];
+    for (const word of remainingWords) {
       const testLine = currentLine + ' ' + word;
       const width = ctx.measureText(testLine).width;
       if (width < maxWidth) {

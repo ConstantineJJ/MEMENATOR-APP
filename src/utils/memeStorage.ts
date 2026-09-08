@@ -183,8 +183,9 @@ export function saveMemeToHistory(
       timestamp: now,
     };
 
-    if (existingIndex >= 0) {
-      savedItem.isFavorite = history[existingIndex].isFavorite ?? savedItem.isFavorite;
+    const existingItem = existingIndex >= 0 ? history.at(existingIndex) : undefined;
+    if (existingItem) {
+      savedItem.isFavorite = existingItem.isFavorite ?? savedItem.isFavorite;
     }
 
     const persistedItem = prepareHistoryItemForStorage(savedItem);
@@ -419,40 +420,41 @@ export function removeFavoriteById(id: string): void {
   }
 }
 
-// ================= SHOWN WEB MEMES DEDUPLICATION =================
-interface ShownWebMemesStore {
+// ================= WEB MEME ANTI-REPEAT MEMORY =================
+interface ShownWebMemesState {
   ids: string[];
   hashes: string[];
 }
 
-export function getShownWebMemeExcludes(): { excludeIds: string[]; excludeHashes: string[] } {
+export function getShownWebMemeExcludes(): ShownWebMemesState {
   try {
     const raw = localStorage.getItem(SHOWN_WEB_MEMES_KEY);
-    if (!raw) return { excludeIds: [], excludeHashes: [] };
-    const parsed: ShownWebMemesStore = JSON.parse(raw);
+    if (!raw) return { ids: [], hashes: [] };
+    const parsed = JSON.parse(raw);
     return {
-      excludeIds: Array.isArray(parsed.ids) ? parsed.ids.slice(-MAX_EXCLUDE_ITEMS) : [],
-      excludeHashes: Array.isArray(parsed.hashes) ? parsed.hashes.slice(-MAX_EXCLUDE_ITEMS) : [],
+      ids: Array.isArray(parsed.ids) ? parsed.ids.filter((id: unknown): id is string => typeof id === 'string') : [],
+      hashes: Array.isArray(parsed.hashes) ? parsed.hashes.filter((hash: unknown): hash is string => typeof hash === 'string') : [],
     };
-  } catch {
-    return { excludeIds: [], excludeHashes: [] };
+  } catch (err) {
+    console.warn('Failed to load shown web meme memory:', err);
+    return { ids: [], hashes: [] };
   }
 }
 
 export function recordShownWebMemes(items: WebMemeItem[]): void {
   try {
     const current = getShownWebMemeExcludes();
-    const itemHashes = items
-      .map((i) => i.hash)
-      .filter((hash): hash is string => typeof hash === 'string' && hash.length > 0);
-    const newIds = new Set([...current.excludeIds, ...items.map((i) => i.id)]);
-    const newHashes = new Set([...current.excludeHashes, ...itemHashes]);
+    const ids = [...current.ids];
+    const hashes = [...current.hashes];
 
-    const stored: ShownWebMemesStore = {
-      ids: Array.from(newIds).slice(-MAX_EXCLUDE_ITEMS),
-      hashes: Array.from(newHashes).slice(-MAX_EXCLUDE_ITEMS),
-    };
-    localStorage.setItem(SHOWN_WEB_MEMES_KEY, JSON.stringify(stored));
+    for (const item of items) {
+      if (item.id) ids.push(item.id);
+      if (item.hash) hashes.push(item.hash);
+    }
+
+    const uniqueIds = [...new Set(ids)].slice(-MAX_EXCLUDE_ITEMS);
+    const uniqueHashes = [...new Set(hashes)].slice(-MAX_EXCLUDE_ITEMS);
+    localStorage.setItem(SHOWN_WEB_MEMES_KEY, JSON.stringify({ ids: uniqueIds, hashes: uniqueHashes }));
   } catch (err) {
     console.warn('Failed to record shown web memes:', err);
   }
