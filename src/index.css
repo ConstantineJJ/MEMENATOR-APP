@@ -1,6 +1,95 @@
 @import "tailwindcss";
 
-/* Sleek dark custom scrollbar */
+:root {
+  color-scheme: dark;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+  background: #f5f7fa;
+}
+
+html[data-theme='light'] body,
+html[data-theme='light'] #root {
+  background: #f5f7fa;
+  color: #171717;
+}
+
+/*
+ * The original studio was authored with Tailwind neutral dark utilities.
+ * Theme overrides keep the component markup stable while providing a coherent
+ * light palette. Accent colors (rose/emerald/amber/cyan) deliberately stay the
+ * same so MEMENATOR keeps its visual identity in both themes.
+ */
+html[data-theme='light'] [class*='bg-neutral-950'] {
+  background-color: rgba(250, 250, 250, 0.97) !important;
+}
+
+html[data-theme='light'] [class*='bg-neutral-900'] {
+  background-color: rgba(245, 245, 245, 0.97) !important;
+}
+
+html[data-theme='light'] [class*='bg-neutral-800'] {
+  background-color: #e5e7eb !important;
+}
+
+html[data-theme='light'] [class*='bg-neutral-700'] {
+  background-color: #d4d4d8 !important;
+}
+
+html[data-theme='light'] [class*='text-neutral-100'],
+html[data-theme='light'] [class*='text-neutral-200'],
+html[data-theme='light'] [class*='text-white'] {
+  color: #171717 !important;
+}
+
+html[data-theme='light'] [class*='text-neutral-300'] {
+  color: #262626 !important;
+}
+
+html[data-theme='light'] [class*='text-neutral-400'] {
+  color: #525252 !important;
+}
+
+html[data-theme='light'] [class*='text-neutral-500'] {
+  color: #737373 !important;
+}
+
+html[data-theme='light'] [class*='border-neutral-800'],
+html[data-theme='light'] [class*='border-neutral-700'] {
+  border-color: #d4d4d8 !important;
+}
+
+html[data-theme='light'] [class*='ring-neutral-'] {
+  --tw-ring-color: #d4d4d8 !important;
+}
+
+html[data-theme='light'] [class*='hover:bg-neutral-800']:hover,
+html[data-theme='light'] [class*='hover:bg-neutral-700']:hover {
+  background-color: #dcdfe4 !important;
+}
+
+html[data-theme='light'] [class*='hover:text-white']:hover {
+  color: #111827 !important;
+}
+
+html[data-theme='light'] input,
+html[data-theme='light'] textarea,
+html[data-theme='light'] select {
+  color: #171717;
+  caret-color: #171717;
+}
+
+html[data-theme='light'] input::placeholder,
+html[data-theme='light'] textarea::placeholder {
+  color: #737373;
+}
+
+html[data-theme='light'] ::selection {
+  color: #ffffff;
+}
+
+/* Sleek custom scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -17,4 +106,16 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(245, 158, 11, 0.4);
+}
+
+html[data-theme='light'] ::-webkit-scrollbar-track {
+  background: rgba(228, 228, 231, 0.8);
+}
+
+html[data-theme='light'] ::-webkit-scrollbar-thumb {
+  background: rgba(82, 82, 91, 0.28);
+}
+
+html[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 158, 11, 0.55);
 }
