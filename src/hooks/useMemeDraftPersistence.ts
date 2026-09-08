@@ -51,11 +51,10 @@ async function readPersistedDraft(): Promise<MemeDraftState | null> {
 /**
  * Restores and autosaves the editable project draft.
  *
- * Restoration is a one-shot startup operation. Callback identities are kept in
- * refs so ordinary editor renders cannot retrigger IndexedDB recovery and
- * overwrite the user's current edits. Autosave remains gated until that single
- * recovery attempt finishes, preventing the default editor state from racing a
- * slow IndexedDB read.
+ * Restoration is a startup-only operation. Callback identities are kept in
+ * refs so normal editor renders cannot retrigger IndexedDB recovery and
+ * overwrite the user's current edits. A generation token keeps the async
+ * recovery safe under React StrictMode's development effect replay.
  */
 export function useMemeDraftPersistence({
   currentDraft,
@@ -68,38 +67,38 @@ export function useMemeDraftPersistence({
   const currentDraftRef = useRef(currentDraft);
   const applyDraftRef = useRef(applyDraft);
   const onRestoredRef = useRef(onRestored);
-  const restorationStartedRef = useRef(false);
+  const restorationGenerationRef = useRef(0);
 
   currentDraftRef.current = currentDraft;
   applyDraftRef.current = applyDraft;
   onRestoredRef.current = onRestored;
 
   useEffect(() => {
-    // React StrictMode may replay mount effects in development. This guard also
-    // protects against any future refactor that accidentally remounts the effect
-    // without intending to recover the same draft twice.
-    if (restorationStartedRef.current) return;
-    restorationStartedRef.current = true;
-
-    let cancelled = false;
+    const generation = ++restorationGenerationRef.current;
 
     void (async () => {
       try {
         const parsed = await readPersistedDraft();
-        if (cancelled || !parsed) return;
+        if (restorationGenerationRef.current !== generation) return;
 
-        applyDraftRef.current(parsed);
-        setIsDraftSaved(true);
-        onRestoredRef.current?.();
+        if (parsed) {
+          applyDraftRef.current(parsed);
+          setIsDraftSaved(true);
+          onRestoredRef.current?.();
+        }
       } catch (err) {
         console.warn('Draft recovery failed:', err);
       } finally {
-        if (!cancelled) setRestorationComplete(true);
+        if (restorationGenerationRef.current === generation) {
+          setRestorationComplete(true);
+        }
       }
     })();
 
     return () => {
-      cancelled = true;
+      if (restorationGenerationRef.current === generation) {
+        restorationGenerationRef.current += 1;
+      }
     };
   }, []);
 
