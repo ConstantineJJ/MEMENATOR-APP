@@ -11,6 +11,13 @@ export interface WorkingImageSize {
   resized: boolean;
 }
 
+interface DecodedImageSource {
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+  cleanup: () => void;
+}
+
 export const MOBILE_WORKING_IMAGE_MAX_DIMENSION = 3072;
 export const DESKTOP_WORKING_IMAGE_MAX_DIMENSION = 4096;
 
@@ -86,6 +93,37 @@ function outputFileName(fileName: string, outputType: string): string {
   return `${base}.jpg`;
 }
 
+async function decodeImageFile(file: File): Promise<DecodedImageSource> {
+  if (typeof createImageBitmap === 'function') {
+    const bitmap = await createImageBitmap(file);
+    return {
+      source: bitmap,
+      width: bitmap.width,
+      height: bitmap.height,
+      cleanup: () => bitmap.close(),
+    };
+  }
+
+  return new Promise<DecodedImageSource>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({
+        source: image,
+        width: image.naturalWidth || image.width,
+        height: image.naturalHeight || image.height,
+        cleanup: () => undefined,
+      });
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Browser could not decode the selected image.'));
+    };
+    image.src = objectUrl;
+  });
+}
+
 /**
  * Protect mobile browsers from retaining full camera-resolution photos in every
  * editable canvas. Small inputs remain byte-for-byte untouched. Oversized
@@ -98,10 +136,10 @@ export async function normalizeImageFileForWorkingCanvas(
 ): Promise<File> {
   if (!file.type.startsWith('image/')) return file;
 
-  let bitmap: ImageBitmap | null = null;
+  let decoded: DecodedImageSource | null = null;
   try {
-    bitmap = await createImageBitmap(file);
-    const target = calculateWorkingImageSize(bitmap.width, bitmap.height, maxDimension);
+    decoded = await decodeImageFile(file);
+    const target = calculateWorkingImageSize(decoded.width, decoded.height, maxDimension);
 
     if (!target.resized) {
       return file;
@@ -115,7 +153,7 @@ export async function normalizeImageFileForWorkingCanvas(
     if (!ctx) return file;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bitmap, 0, 0, target.width, target.height);
+    ctx.drawImage(decoded.source, 0, 0, target.width, target.height);
 
     const outputType = file.type === 'image/png'
       ? 'image/png'
@@ -137,7 +175,7 @@ export async function normalizeImageFileForWorkingCanvas(
     console.warn('Working-image normalization failed; using original file:', err);
     return file;
   } finally {
-    bitmap?.close();
+    decoded?.cleanup();
   }
 }
 
