@@ -3,6 +3,7 @@ import { GeneratedMemeImage } from '../types';
 
 const STORAGE_KEY = 'memenator_generated_images_v1';
 const MAX_STORED_IMAGES = 6;
+const MAX_SESSION_IMAGES = 10;
 
 function loadStoredGenerations(): GeneratedMemeImage[] {
   try {
@@ -27,6 +28,41 @@ function saveStoredGenerations(items: GeneratedMemeImage[]) {
   } catch {
     // Gracefully ignore QuotaExceededError
   }
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') resolve(reader.result);
+      else reject(new Error('Не удалось преобразовать изображение для редактирования.'));
+    };
+    reader.onerror = () => reject(reader.error || new Error('Не удалось прочитать изображение.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function normalizeSourceImageForEdit(source: string): Promise<string> {
+  if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(source)) {
+    return source;
+  }
+
+  let response: Response;
+  if (/^https?:\/\//i.test(source)) {
+    response = await fetch(`/api/proxy-image?url=${encodeURIComponent(source)}`);
+  } else {
+    response = await fetch(source);
+  }
+
+  if (!response.ok) {
+    throw new Error('Не удалось подготовить текущее изображение для редактирования.');
+  }
+
+  const blob = await response.blob();
+  if (!blob.type.startsWith('image/')) {
+    throw new Error('Текущее содержимое не является изображением.');
+  }
+  return blobToDataUrl(blob);
 }
 
 export function useImageGeneration() {
@@ -62,7 +98,7 @@ export function useImageGeneration() {
         };
 
         if (mode === 'edit' && sourceImageBase64) {
-          payload.sourceImageBase64 = sourceImageBase64;
+          payload.sourceImageBase64 = await normalizeSourceImageForEdit(sourceImageBase64);
         }
 
         const response = await fetch('/api/generate-template-image', {
@@ -87,12 +123,12 @@ export function useImageGeneration() {
           prompt: trimmedPrompt,
           aspectRatio,
           createdAt: Date.now(),
-          modelUsed: data.modelUsed || (data.isFallback ? 'Fallback' : 'gemini-3.1-flash-image-preview'),
+          modelUsed: data.modelUsed || (data.isFallback ? 'Fallback' : 'gemini-3.1-flash-image'),
           isFallback: Boolean(data.isFallback),
           sourceMode: mode,
         };
 
-        setHistory((prev) => [newImage, ...prev.filter((item) => item.imageUrl !== newImage.imageUrl)].slice(0, 10));
+        setHistory((prev) => [newImage, ...prev.filter((item) => item.imageUrl !== newImage.imageUrl)].slice(0, MAX_SESSION_IMAGES));
         return newImage;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Не удалось сгенерировать мем-картинку';
