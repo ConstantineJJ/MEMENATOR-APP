@@ -20,13 +20,15 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [x] Return an honest empty search result instead of unrelated random memes.
 
 ## P2 — polish / maintainability
-- [ ] Make Fill preview match export semantics.
+- [x] Eliminate the misleading Fill preview/export mismatch. The old Fill control stretched the rendered canvas into the viewport aspect ratio while export preserved the source aspect ratio, so the unsafe stretch mode is hidden and proportional Fit remains the single source-of-truth viewport mode. A future cover mode should be implemented only together with matching export crop semantics.
 - [x] Consolidate canvas/crop pointer and touch interactions with Pointer Events. Text, sticker, sticker-scale, text-scale, crop move and crop resize now share mouse/touch/stylus-compatible pointer handling with pointer cancellation and touch-action safeguards.
 - [x] Clean up initial Undo/Redo duplicate snapshot behavior.
 - [x] Make autosave status reflect pending vs saved state.
 - [x] Label composition fallback as heuristic rather than real AI analysis.
 - [x] Improve retry handling for 429 / RESOURCE_EXHAUSTED.
 - [x] Remove white sticker backing circles and refresh the programmatic sticker visuals with cleaner shadows, gradients, and transparent shapes.
+- [x] Add persisted Russian/English UI switching with a global preference control and safe exact-phrase translation layer that avoids meme canvas/input content.
+- [x] Add persisted Dark/Light theme switching while preserving MEMENATOR accent colors.
 - [ ] Split oversized `server.ts`, `MemeCanvas.tsx`, and `App.tsx` without changing behavior.
 - [x] Deduplicate shared AI style configuration between the compact panel and full caption modal.
 - [ ] Tighten TypeScript settings incrementally. Progress: `strictBindCallApply`, `strictFunctionTypes`, `noImplicitThis`, and `noUncheckedSideEffectImports` are enabled; Vite client declarations added so asset imports remain type-safe.
