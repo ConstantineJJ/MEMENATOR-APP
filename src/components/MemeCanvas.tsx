@@ -25,6 +25,7 @@ interface MemeCanvasProps {
   textBoxes: TextBox[];
   stickers: MemeSticker[];
   filter: MemeFilter;
+  filterIntensity?: number;
   watermark: boolean;
   selectedBoxId: string | null;
   onSelectBox: (id: string | null) => void;
@@ -54,6 +55,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
   textBoxes,
   stickers,
   filter,
+  filterIntensity = 100,
   watermark,
   selectedBoxId,
   onSelectBox,
@@ -79,11 +81,38 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState<'png' | 'jpeg'>('png');
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
+  const [fitMode, setFitMode] = useState<'fit' | 'fill'>('fit');
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  // Measure container dimensions for responsive image fitting
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setContainerSize({
+          width: Math.max(120, Math.floor(rect.width - 24)),
+          height: Math.max(120, Math.floor(rect.height - 24)),
+        });
+      }
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(containerRef.current);
+    window.addEventListener('resize', updateSize);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
+  }, []);
 
   // Snapping & Guidelines state
   const [activeGuides, setActiveGuides] = useState<{
@@ -137,9 +166,9 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
   // Redraw canvas whenever parameters change
   useEffect(() => {
     if (canvasRef.current && loadedImage) {
-      drawMemeOnCanvas(canvasRef.current, loadedImage, textBoxes, stickers, filter, watermark);
+      drawMemeOnCanvas(canvasRef.current, loadedImage, textBoxes, stickers, filter, watermark, filterIntensity);
     }
-  }, [loadedImage, textBoxes, stickers, filter, watermark]);
+  }, [loadedImage, textBoxes, stickers, filter, watermark, filterIntensity]);
 
   // Drag handlers for direct on-canvas positioning with snapping
   const startDrag = useCallback(
@@ -225,7 +254,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
   useEffect(() => {
     const handleMove = (clientX: number, clientY: number) => {
       if (!draggingItem || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
+      const rect = canvasWrapperRef.current?.getBoundingClientRect() || containerRef.current.getBoundingClientRect();
 
       // Sticker Scale mode
       if (draggingItem.type === 'sticker-scale') {
@@ -481,6 +510,33 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
               <Redo2 className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Fit Mode Switcher (Fit / Fill) */}
+          <div className="flex items-center rounded-xl bg-neutral-950/90 border border-neutral-800 p-0.5" title="Масштабирование картинки под холст">
+            <button
+              onClick={() => setFitMode('fit')}
+              className={`flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold rounded-lg transition cursor-pointer ${
+                fitMode === 'fit'
+                  ? 'bg-rose-500 text-white font-black shadow-sm'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+              title="Авто-Fit: пропорционально растягивает или уменьшает картинку под всю площадь холста"
+            >
+              <Maximize2 className="w-3 h-3" />
+              <span className="hidden sm:inline">Fit</span>
+            </button>
+            <button
+              onClick={() => setFitMode('fill')}
+              className={`flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold rounded-lg transition cursor-pointer ${
+                fitMode === 'fill'
+                  ? 'bg-rose-500 text-white font-black shadow-sm'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+              title="Fill: растянуть картинку на 100% площади холста"
+            >
+              <span className="hidden sm:inline">Fill</span>
+            </button>
+          </div>
         </div>
 
         {/* Right Export Buttons */}
@@ -552,13 +608,48 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
               <span>Обновить холст</span>
             </button>
           </div>
-        ) : (
-          <div className="relative inline-block max-w-full max-h-full">
-            <canvas
-              ref={canvasRef}
-              className="max-w-full h-auto rounded-2xl shadow-xl border border-neutral-800/60 block select-none object-contain"
-              style={{ maxHeight: 'calc(100vh - 270px)' }}
-            />
+        ) : (() => {
+          // Dynamic Fit calculation: automatically scales up or down to fill canvas area
+          const imageNaturalW = loadedImage?.naturalWidth || 800;
+          const imageNaturalH = loadedImage?.naturalHeight || 600;
+          const imageAspect = imageNaturalW / imageNaturalH;
+
+          const availW = containerSize.width > 0 ? containerSize.width : 600;
+          const availH = containerSize.height > 0 ? containerSize.height : 450;
+          const containerAspect = availW / availH;
+
+          let displayW = availW;
+          let displayH = availH;
+
+          if (fitMode === 'fill') {
+            displayW = availW;
+            displayH = availH;
+          } else {
+            // Proportional Fit: maximize image in available viewport box
+            if (imageAspect > containerAspect) {
+              displayW = availW;
+              displayH = Math.round(availW / imageAspect);
+            } else {
+              displayH = availH;
+              displayW = Math.round(availH * imageAspect);
+            }
+          }
+
+          return (
+            <div
+              ref={canvasWrapperRef}
+              style={{
+                width: `${displayW}px`,
+                height: `${displayH}px`,
+                maxWidth: '100%',
+                maxHeight: '100%',
+              }}
+              className="relative flex items-center justify-center rounded-2xl shadow-2xl border border-neutral-800/80 overflow-hidden select-none bg-neutral-950 transition-[width,height] duration-150"
+            >
+              <canvas
+                ref={canvasRef}
+                className="w-full h-full block select-none object-contain"
+              />
 
             {/* COMPOSITION GUIDES OVERLAYS */}
             {/* 1. Rule of Thirds (Трети 3x3) */}
@@ -920,7 +1011,8 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
               );
             })}
           </div>
-        )}
+        );
+      })()}
       </div>
 
       <div className="w-full flex items-center justify-between text-[11px] text-neutral-400 mt-2 px-1">

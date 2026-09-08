@@ -104,7 +104,8 @@ export function drawMemeOnCanvas(
   textBoxes: TextBox[],
   stickers: MemeSticker[],
   filter: MemeFilter,
-  watermark: boolean = false
+  watermark: boolean = false,
+  filterIntensity: number = 100
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -113,46 +114,89 @@ export function drawMemeOnCanvas(
   const originalWidth = image.naturalWidth || image.width || 800;
   const originalHeight = image.naturalHeight || image.height || 600;
 
-  // Render at crisp resolution (e.g. max 1200px width for sharp exports)
-  const maxDimension = 1200;
+  // Render at crisp resolution (normalize so small uploaded images render ultra-crisp and large images don't exceed memory)
+  const minDimension = 900;
+  const maxDimension = 1400;
   let targetWidth = originalWidth;
   let targetHeight = originalHeight;
 
-  if (targetWidth > maxDimension || targetHeight > maxDimension) {
-    const scale = Math.min(maxDimension / targetWidth, maxDimension / targetHeight);
-    targetWidth = Math.round(targetWidth * scale);
-    targetHeight = Math.round(targetHeight * scale);
+  if (targetWidth < minDimension && targetHeight < minDimension) {
+    const scaleUp = minDimension / Math.max(targetWidth, targetHeight);
+    targetWidth = Math.round(targetWidth * scaleUp);
+    targetHeight = Math.round(targetHeight * scaleUp);
+  } else if (targetWidth > maxDimension || targetHeight > maxDimension) {
+    const scaleDown = Math.min(maxDimension / targetWidth, maxDimension / targetHeight);
+    targetWidth = Math.round(targetWidth * scaleDown);
+    targetHeight = Math.round(targetHeight * scaleDown);
   }
 
   canvas.width = targetWidth;
   canvas.height = targetHeight;
 
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   ctx.clearRect(0, 0, targetWidth, targetHeight);
 
-  // Apply curated filters
+  const intensity = Math.max(0, Math.min(100, filterIntensity)) / 100;
+
+  // Apply curated filters with intensity scaling
   ctx.save();
   if (filter === 'deepfry') {
-    ctx.filter = 'contrast(170%) saturate(220%) brightness(108%)';
+    const contrast = 100 + 70 * intensity;
+    const saturate = 100 + 120 * intensity;
+    const brightness = 100 + 8 * intensity;
+    ctx.filter = `contrast(${contrast}%) saturate(${saturate}%) brightness(${brightness}%)`;
   } else if (filter === 'vhs') {
-    ctx.filter = 'sepia(35%) saturate(140%) contrast(125%) hue-rotate(345deg)';
+    const sepia = 35 * intensity;
+    const saturate = 100 + 40 * intensity;
+    const contrast = 100 + 25 * intensity;
+    const hue = 345 * intensity;
+    ctx.filter = `sepia(${sepia}%) saturate(${saturate}%) contrast(${contrast}%) hue-rotate(${hue}deg)`;
   } else if (filter === 'grayscale') {
-    ctx.filter = 'grayscale(100%) contrast(130%) brightness(95%)';
+    const gray = 100 * intensity;
+    const contrast = 100 + 30 * intensity;
+    const brightness = 100 - 5 * intensity;
+    ctx.filter = `grayscale(${gray}%) contrast(${contrast}%) brightness(${brightness}%)`;
   } else if (filter === 'vintage') {
-    ctx.filter = 'sepia(65%) contrast(115%) brightness(92%)';
+    const sepia = 65 * intensity;
+    const contrast = 100 + 15 * intensity;
+    const brightness = 100 - 8 * intensity;
+    ctx.filter = `sepia(${sepia}%) contrast(${contrast}%) brightness(${brightness}%)`;
   } else if (filter === 'contrast') {
-    ctx.filter = 'contrast(150%) brightness(105%)';
+    const contrast = 100 + 50 * intensity;
+    const brightness = 100 + 5 * intensity;
+    ctx.filter = `contrast(${contrast}%) brightness(${brightness}%)`;
   } else if (filter === 'warm') {
-    ctx.filter = 'sepia(25%) saturate(150%) brightness(103%)';
+    const sepia = 25 * intensity;
+    const saturate = 100 + 50 * intensity;
+    const brightness = 100 + 3 * intensity;
+    ctx.filter = `sepia(${sepia}%) saturate(${saturate}%) brightness(${brightness}%)`;
   } else if (filter === 'dramatic') {
-    ctx.filter = 'contrast(165%) saturate(75%) brightness(90%) hue-rotate(190deg)';
+    const contrast = 100 + 65 * intensity;
+    const saturate = 100 - 25 * intensity;
+    const brightness = 100 - 10 * intensity;
+    const hue = 190 * intensity;
+    ctx.filter = `contrast(${contrast}%) saturate(${saturate}%) brightness(${brightness}%) hue-rotate(${hue}deg)`;
   } else if (filter === 'cyberpunk') {
-    ctx.filter = 'contrast(150%) saturate(190%) hue-rotate(280deg)';
+    const contrast = 100 + 50 * intensity;
+    const saturate = 100 + 90 * intensity;
+    const hue = 280 * intensity;
+    ctx.filter = `contrast(${contrast}%) saturate(${saturate}%) hue-rotate(${hue}deg)`;
   } else if (filter === 'vivid') {
-    ctx.filter = 'saturate(200%) contrast(125%) brightness(104%)';
+    const saturate = 100 + 100 * intensity;
+    const contrast = 100 + 25 * intensity;
+    const brightness = 100 + 4 * intensity;
+    ctx.filter = `saturate(${saturate}%) contrast(${contrast}%) brightness(${brightness}%)`;
   } else if (filter === 'toxic') {
-    ctx.filter = 'contrast(180%) saturate(200%) hue-rotate(90deg) brightness(110%)';
+    const contrast = 100 + 80 * intensity;
+    const saturate = 100 + 100 * intensity;
+    const hue = 90 * intensity;
+    const brightness = 100 + 10 * intensity;
+    ctx.filter = `contrast(${contrast}%) saturate(${saturate}%) hue-rotate(${hue}deg) brightness(${brightness}%)`;
   } else if (filter === 'vignette') {
-    ctx.filter = 'contrast(125%) brightness(95%)';
+    const contrast = 100 + 25 * intensity;
+    const brightness = 100 - 5 * intensity;
+    ctx.filter = `contrast(${contrast}%) brightness(${brightness}%)`;
   } else {
     ctx.filter = 'none';
   }
@@ -162,7 +206,7 @@ export function drawMemeOnCanvas(
   ctx.restore();
 
   // Draw Vignette overlay if active
-  if (filter === 'vignette') {
+  if (filter === 'vignette' && intensity > 0) {
     ctx.save();
     const radius = Math.max(targetWidth, targetHeight) * 0.7;
     const vigGrad = ctx.createRadialGradient(
@@ -174,8 +218,8 @@ export function drawMemeOnCanvas(
       radius
     );
     vigGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    vigGrad.addColorStop(0.75, 'rgba(0, 0, 0, 0.45)');
-    vigGrad.addColorStop(1, 'rgba(0, 0, 0, 0.88)');
+    vigGrad.addColorStop(0.75, `rgba(0, 0, 0, ${0.45 * intensity})`);
+    vigGrad.addColorStop(1, `rgba(0, 0, 0, ${0.88 * intensity})`);
     ctx.fillStyle = vigGrad;
     ctx.fillRect(0, 0, targetWidth, targetHeight);
     ctx.restore();

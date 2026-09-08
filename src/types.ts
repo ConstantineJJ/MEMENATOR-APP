@@ -46,6 +46,7 @@ export interface SavedMemeState {
   textBoxes: TextBox[];
   stickers: MemeSticker[];
   filter: MemeFilter;
+  filterIntensity?: number;
   watermark: boolean;
   timestamp: number;
   isFavorite?: boolean;

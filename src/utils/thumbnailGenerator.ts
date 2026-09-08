@@ -10,7 +10,8 @@ export async function generateMemeThumbnail(
   textBoxes: TextBox[],
   stickers: MemeSticker[],
   filter: MemeFilter,
-  watermark: boolean = false
+  watermark: boolean = false,
+  filterIntensity: number = 100
 ): Promise<string> {
   return new Promise((resolve) => {
     try {
@@ -33,7 +34,7 @@ export async function generateMemeThumbnail(
           offscreenCanvas.width = Math.round(origW * scale);
           offscreenCanvas.height = Math.round(origH * scale);
 
-          drawMemeOnCanvas(offscreenCanvas, img, textBoxes, stickers, filter, watermark);
+          drawMemeOnCanvas(offscreenCanvas, img, textBoxes, stickers, filter, watermark, filterIntensity);
           const dataUrl = offscreenCanvas.toDataURL('image/jpeg', 0.82);
           resolve(dataUrl);
         } catch (_canvasErr) {

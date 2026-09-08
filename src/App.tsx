@@ -33,6 +33,7 @@ interface HistoryState {
   textBoxes: TextBox[];
   stickers: MemeSticker[];
   filter: MemeFilter;
+  filterIntensity?: number;
   watermark: boolean;
   activeImageSrc: string;
 }
@@ -94,6 +95,7 @@ export default function App() {
   // Stickers & Filters
   const [stickers, setStickrs] = useState<MemeSticker[]>([]);
   const [filter, setFilter] = useState<MemeFilter>('none');
+  const [filterIntensity, setFilterIntensity] = useState<number>(100);
   const [watermark, setWatermark] = useState<boolean>(false);
 
   // Magic Caption / Замемить Modal & Generation State
@@ -160,6 +162,7 @@ export default function App() {
         textBoxes,
         stickers,
         filter,
+        filterIntensity,
         watermark,
         activeImageSrc,
       };
@@ -175,16 +178,16 @@ export default function App() {
       isUndoRedoAction.current = false;
       return;
     }
-    const stateJson = JSON.stringify({ textBoxes, stickers, filter, watermark, activeImageSrc });
+    const stateJson = JSON.stringify({ textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc });
     if (stateJson === lastPushedRef.current) return;
 
     const timer = setTimeout(() => {
       lastPushedRef.current = stateJson;
-      pushToHistory({ textBoxes, stickers, filter, watermark, activeImageSrc });
+      pushToHistory({ textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc });
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [textBoxes, stickers, filter, watermark, activeImageSrc, pushToHistory]);
+  }, [textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc, pushToHistory]);
 
   // Undo Action
   const handleUndo = useCallback(() => {
@@ -195,6 +198,7 @@ export default function App() {
       setTextBoxes(targetState.textBoxes);
       setStickrs(targetState.stickers);
       setFilter(targetState.filter);
+      setFilterIntensity(targetState.filterIntensity ?? 100);
       setWatermark(targetState.watermark);
       setActiveImageSrc(targetState.activeImageSrc);
       showToast('Действие отменено (Undo)');
@@ -210,6 +214,7 @@ export default function App() {
       setTextBoxes(targetState.textBoxes);
       setStickrs(targetState.stickers);
       setFilter(targetState.filter);
+      setFilterIntensity(targetState.filterIntensity ?? 100);
       setWatermark(targetState.watermark);
       setActiveImageSrc(targetState.activeImageSrc);
       showToast('Действие повторено (Redo)');
@@ -250,6 +255,7 @@ export default function App() {
           textBoxes,
           stickers,
           filter,
+          filterIntensity,
           watermark,
           activeImageSrc,
           originalImageSrc,
@@ -264,7 +270,7 @@ export default function App() {
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [textBoxes, stickers, filter, watermark, activeImageSrc, originalImageSrc, selectedTemplateId]);
+  }, [textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc, originalImageSrc, selectedTemplateId]);
 
   // Restore Draft from localStorage on mount
   useEffect(() => {
@@ -276,6 +282,7 @@ export default function App() {
           setTextBoxes(parsed.textBoxes);
           if (Array.isArray(parsed.stickers)) setStickrs(parsed.stickers);
           if (parsed.filter) setFilter(parsed.filter);
+          if (typeof parsed.filterIntensity === 'number') setFilterIntensity(parsed.filterIntensity);
           if (parsed.watermark !== undefined) setWatermark(parsed.watermark);
           setActiveImageSrc(parsed.activeImageSrc);
           if (parsed.originalImageSrc) setOriginalImageSrc(parsed.originalImageSrc);
@@ -302,7 +309,8 @@ export default function App() {
           textBoxes,
           stickers,
           filter,
-          watermark
+          watermark,
+          filterIntensity
         );
 
         const saved = saveMemeToHistory({
@@ -313,6 +321,7 @@ export default function App() {
           textBoxes,
           stickers,
           filter,
+          filterIntensity,
           watermark,
           templateId: selectedTemplateId,
         });
@@ -327,7 +336,7 @@ export default function App() {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [textBoxes, stickers, filter, watermark, activeImageSrc, selectedTemplateId]);
+  }, [textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc, selectedTemplateId]);
 
   // Restore Meme from History or Favorites tab
   const handleRestoreMeme = useCallback((saved: SavedMemeState) => {
@@ -337,6 +346,7 @@ export default function App() {
     setTextBoxes(saved.textBoxes);
     setStickrs(saved.stickers);
     setFilter(saved.filter);
+    setFilterIntensity(saved.filterIntensity ?? 100);
     setWatermark(saved.watermark);
     setSelectedTemplateId(saved.templateId ?? null);
     setCaptions([]);
@@ -345,6 +355,7 @@ export default function App() {
       textBoxes: saved.textBoxes,
       stickers: saved.stickers,
       filter: saved.filter,
+      filterIntensity: saved.filterIntensity ?? 100,
       watermark: saved.watermark,
       activeImageSrc: saved.imageSrc,
     });
@@ -475,6 +486,9 @@ export default function App() {
     setIsAnalyzingComposition(true);
     try {
       const base64 = await getBase64FromImageUrl(srcToUse);
+      if (!base64) {
+        return;
+      }
       const res = await fetch('/api/analyze-composition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -785,7 +799,9 @@ export default function App() {
           <div className="h-[40%] min-h-0 flex flex-col flex-1">
             <StickersAndFilters
               filter={filter}
+              filterIntensity={filterIntensity}
               onSelectFilter={setFilter}
+              onChangeFilterIntensity={setFilterIntensity}
               stickers={stickers}
               onAddSticker={handleAddSticker}
               onClearStickers={() => setStickrs([])}
@@ -826,6 +842,7 @@ export default function App() {
               textBoxes={textBoxes}
               stickers={stickers}
               filter={filter}
+              filterIntensity={filterIntensity}
               watermark={watermark}
               selectedBoxId={selectedBoxId}
               onSelectBox={setSelectedBoxId}

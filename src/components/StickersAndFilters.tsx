@@ -5,7 +5,9 @@ import { Smile, SlidersHorizontal, Trash2 } from 'lucide-react';
 
 interface StickersAndFiltersProps {
   filter: MemeFilter;
+  filterIntensity?: number;
   onSelectFilter: (filter: MemeFilter) => void;
+  onChangeFilterIntensity?: (val: number) => void;
   stickers: MemeSticker[];
   onAddSticker: (
     type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'badge' | 'custom' | 'sticker-art' | 'stamp',
@@ -37,7 +39,9 @@ type StickerCategory = 'all' | 'mascot' | 'accessories' | 'badges' | 'characters
 
 export const StickersAndFilters: React.FC<StickersAndFiltersProps> = ({
   filter,
+  filterIntensity = 100,
   onSelectFilter,
+  onChangeFilterIntensity,
   stickers,
   onAddSticker,
   onClearStickers,
@@ -46,6 +50,37 @@ export const StickersAndFilters: React.FC<StickersAndFiltersProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'filters' | 'stickers'>('filters');
   const [activeCategory, setActiveCategory] = useState<StickerCategory>('all');
+  const [intensities, setIntensities] = useState<Record<MemeFilter, number>>({
+    none: 100,
+    deepfry: 100,
+    vhs: 100,
+    vintage: 100,
+    grayscale: 100,
+    contrast: 100,
+    warm: 100,
+    dramatic: 100,
+    cyberpunk: 100,
+    vivid: 100,
+    toxic: 100,
+    vignette: 100,
+  });
+
+  const handleIntensityChange = (filterId: MemeFilter, val: number, e?: React.SyntheticEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setIntensities((prev) => ({ ...prev, [filterId]: val }));
+    if (filter !== filterId) {
+      onSelectFilter(filterId);
+    }
+    onChangeFilterIntensity?.(val);
+  };
+
+  const handleFilterClick = (filterId: MemeFilter) => {
+    onSelectFilter(filterId);
+    const currentVal = intensities[filterId] ?? 100;
+    onChangeFilterIntensity?.(currentVal);
+  };
 
   const filteredStickers =
     activeCategory === 'all'
@@ -106,26 +141,74 @@ export const StickersAndFilters: React.FC<StickersAndFiltersProps> = ({
       {/* ================= TAB 1: FILTERS ================= */}
       {activeTab === 'filters' && (
         <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
-          <div className="grid grid-cols-3 gap-1.5 flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar items-center">
+          <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar items-stretch content-start">
             {FILTERS.map((f) => {
               const isSelected = filter === f.id;
+              const intensityVal = isSelected ? (filterIntensity ?? intensities[f.id] ?? 100) : (intensities[f.id] ?? 100);
               return (
-                <button
+                <div
                   key={f.id}
-                  onClick={() => onSelectFilter(f.id)}
-                  className={`p-1.5 rounded-xl text-[10px] font-semibold border transition cursor-pointer flex items-center gap-1.5 truncate ${
+                  onClick={() => handleFilterClick(f.id)}
+                  className={`p-2 rounded-xl text-[10px] font-semibold border transition cursor-pointer flex flex-col justify-between gap-1.5 relative select-none ${
                     isSelected
-                      ? 'border-rose-500 bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40'
-                      : 'border-neutral-800 bg-neutral-950/70 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800/50'
+                      ? 'border-rose-500 bg-rose-500/15 text-rose-200 ring-1 ring-rose-500/40 shadow-sm shadow-rose-500/10'
+                      : 'border-neutral-800 bg-neutral-950/80 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800/60'
                   }`}
                   title={`${f.label} — ${f.desc}`}
                 >
-                  <span className="text-sm shrink-0">{f.icon}</span>
-                  <div className="min-w-0 text-left">
-                    <p className="truncate font-bold leading-tight">{f.label}</p>
-                    <p className="text-[8px] text-neutral-400 truncate">{f.desc}</p>
+                  {/* Top: Large Icon + Title & Desc */}
+                  <div className="flex items-center gap-2">
+                    {/* Enlarged Filter Icon */}
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-2xl transition-transform ${
+                      isSelected
+                        ? 'bg-rose-500/25 border border-rose-500/50 scale-105 shadow-inner'
+                        : 'bg-neutral-900/90 border border-neutral-800 group-hover:scale-105'
+                    }`}>
+                      <span className="drop-shadow-sm">{f.icon}</span>
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="truncate font-bold text-[11px] leading-tight text-white">{f.label}</p>
+                        {isSelected && (
+                          <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.9)] shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-[8.5px] text-neutral-400 truncate">{f.desc}</p>
+                    </div>
                   </div>
-                </button>
+
+                  {/* Bottom: Intensity Bar (Полоска интенсивности) */}
+                  <div
+                    className="w-full bg-neutral-900/90 border border-neutral-800/80 rounded-lg p-1 px-1.5 flex flex-col gap-0.5 mt-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between text-[8px] font-bold text-neutral-400">
+                      <span>Интенсивность</span>
+                      <span className={`font-mono text-[8.5px] ${isSelected ? 'text-rose-400 font-black' : 'text-neutral-400'}`}>
+                        {f.id === 'none' ? '—' : `${intensityVal}%`}
+                      </span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      disabled={f.id === 'none'}
+                      value={f.id === 'none' ? 100 : intensityVal}
+                      onChange={(e) => handleIntensityChange(f.id, parseInt(e.target.value, 10), e)}
+                      className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer transition ${
+                        f.id === 'none'
+                          ? 'bg-neutral-800 opacity-40 cursor-not-allowed'
+                          : isSelected
+                          ? 'accent-rose-500 bg-rose-950/60'
+                          : 'accent-neutral-400 bg-neutral-800 hover:accent-rose-400'
+                      }`}
+                      title={`Интенсивность фильтра «${f.label}»: ${intensityVal}%`}
+                    />
+                  </div>
+                </div>
               );
             })}
           </div>
