@@ -5,6 +5,7 @@ import {GlobalPreferenceControls, UiPreferencesProvider} from './uiPreferences';
 import {PartisanLocalizationCleanup} from './partisanLocalization';
 import {startResponsiveProfileSync} from './responsiveProfiles';
 import './index.css';
+import './mobileSafeArea.css';
 
 startResponsiveProfileSync();
 
