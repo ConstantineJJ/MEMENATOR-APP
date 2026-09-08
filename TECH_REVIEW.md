@@ -7,7 +7,7 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [x] Harden `/api/proxy-image` against SSRF/open-proxy abuse with host allowlist, redirect validation, timeout, MIME and size checks.
 - [x] Fix oversized history thumbnails that were silently re-rendered at 900–1400px.
 - [x] Add quota-aware history trimming as an immediate localStorage safeguard.
-- [ ] Move large editable image history/draft payloads from localStorage to IndexedDB.
+- [x] Move large editable image history and draft payloads from localStorage to IndexedDB, including safe migration of legacy data.
 - [x] Normalize/migrate web favorites and align favorite data types.
 
 ## P1 — correctness / quota
@@ -24,13 +24,15 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [ ] Consolidate canvas/crop pointer and touch interactions with Pointer Events.
 - [x] Clean up initial Undo/Redo duplicate snapshot behavior.
 - [x] Make autosave status reflect pending vs saved state.
-- [ ] Label composition fallback as heuristic rather than real AI analysis.
+- [x] Label composition fallback as heuristic rather than real AI analysis.
 - [x] Improve retry handling for 429 / RESOURCE_EXHAUSTED.
 - [ ] Split oversized `server.ts`, `MemeCanvas.tsx`, and `App.tsx` without changing behavior.
 - [ ] Deduplicate shared AI style configuration.
 - [ ] Tighten TypeScript settings incrementally.
-- [ ] Add permanent typecheck/tests/build CI safety net.
+- [x] Add permanent read-only typecheck/build CI safety net.
+- [ ] Add automated tests to the CI safety net.
 - [x] Read `PORT` from the environment.
+- [ ] Replace title/filename pseudo-signatures with a real perceptual image hash for stronger cross-provider deduplication.
 
 ## Verification rule
-For each non-trivial code pass: run TypeScript typecheck and production build before marking the item complete. Avoid temporary self-modifying Actions workflows; keep verification workflows read-only.
+For each non-trivial code pass: run TypeScript typecheck and production build before marking the item complete. Keep verification workflows read-only; do not use self-modifying GitHub Actions workflows.
