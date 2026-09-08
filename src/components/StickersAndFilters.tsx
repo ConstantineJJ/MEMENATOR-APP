@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MemeSticker, MemeFilter } from '../types';
+import { MemeSticker, MemeFilter, MemeStickerType } from '../types';
 import { STICKER_COLLECTION, StickerDefinition } from '../data/stickers';
 import { Smile, SlidersHorizontal, Trash2 } from 'lucide-react';
 
@@ -10,7 +10,7 @@ interface StickersAndFiltersProps {
   onChangeFilterIntensity?: (val: number) => void;
   stickers: MemeSticker[];
   onAddSticker: (
-    type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'badge' | 'custom' | 'sticker-art' | 'stamp',
+    type: MemeStickerType,
     label: string,
     emoji?: string,
     stickerId?: string
@@ -257,10 +257,6 @@ export const StickersAndFilters: React.FC<StickersAndFiltersProps> = ({
                   ) : stk.type === 'stamp' ? (
                     <span className="text-[7.5px] font-black font-mono border border-emerald-400 text-emerald-400 px-1 rounded bg-black/40">
                       {stk.badgeText?.slice(0, 5) || 'OK'}
-                    </span>
-                  ) : stk.type === 'badge' ? (
-                    <span className="text-[7px] font-black px-1 rounded bg-rose-500 text-white">
-                      {stk.badgeText?.slice(0, 5) || 'BADGE'}
                     </span>
                   ) : (
                     <span className="text-base group-hover:scale-115 transition-transform">
