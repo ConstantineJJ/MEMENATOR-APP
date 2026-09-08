@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { CaptionSuggestion, CompositionAnalysis } from '../types';
+import { selectBestCaptionSuggestions } from '../utils/captionSelector';
 import { getImagePayloadFromUrl } from '../utils/imageHelper';
 
 interface UseMagicCaptionsOptions {
@@ -8,10 +9,35 @@ interface UseMagicCaptionsOptions {
   onGenerated?: (captions: CaptionSuggestion[]) => void;
 }
 
+const RECENT_CAPTIONS_PREFIX = 'memenator:recent-captions:';
+const DISPLAY_LIMIT = 3;
+const RECENT_LIMIT = 9;
+
+function loadRecentCaptions(style: string): CaptionSuggestion[] {
+  try {
+    const raw = sessionStorage.getItem(`${RECENT_CAPTIONS_PREFIX}${style}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, RECENT_LIMIT) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberCaptions(style: string, captions: CaptionSuggestion[]) {
+  try {
+    const previous = loadRecentCaptions(style);
+    const next = [...captions, ...previous].slice(0, RECENT_LIMIT);
+    sessionStorage.setItem(`${RECENT_CAPTIONS_PREFIX}${style}`, JSON.stringify(next));
+  } catch {
+    // Session storage is only a diversity aid; generation must never depend on it.
+  }
+}
+
 /**
- * Owns Gemini caption state and the in-flight request guard. Keeping the whole
- * caption feature in one hook prevents App from mixing API transport, loading
- * state and UI orchestration, and preserves the single-request quota safeguard.
+ * Owns Gemini caption state and the in-flight request guard. The model can
+ * return a wider candidate pool, while the hook curates it down to three
+ * stronger and less repetitive suggestions for the user.
  */
 export function useMagicCaptions({
   activeImageSrc,
@@ -80,8 +106,14 @@ export function useMagicCaptions({
         throw new Error('Получен некорректный ответ от модели.');
       }
 
-      const nextCaptions = data.captions as CaptionSuggestion[];
+      const rawCaptions = data.captions as CaptionSuggestion[];
+      const nextCaptions = selectBestCaptionSuggestions(rawCaptions, {
+        limit: DISPLAY_LIMIT,
+        recentCaptions: loadRecentCaptions(styleToUse),
+      });
+
       setCaptions(nextCaptions);
+      rememberCaptions(styleToUse, nextCaptions);
       onGenerated?.(nextCaptions);
     } catch (err) {
       const message = err instanceof Error
