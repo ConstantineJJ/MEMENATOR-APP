@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { MemeCanvas } from './components/MemeCanvas';
 import { MagicCaptionModal } from './components/MagicCaptionModal';
 import { CropZoomModal } from './components/CropZoomModal';
@@ -19,7 +19,6 @@ import {
   CaptionSuggestion,
   MemeTemplate,
   TrendingWebMeme,
-  CompositionAnalysis,
   CompositionGuideType,
   WebMemeItem,
   SavedMemeState,
@@ -35,6 +34,7 @@ import {
   MemeHistoryAutosaveSnapshot,
   useMemeHistoryAutosave,
 } from './hooks/useMemeHistoryAutosave';
+import { useCompositionAnalysis } from './hooks/useCompositionAnalysis';
 import { Sparkles, CheckCircle, Crop, Undo2, Redo2, RotateCcw, Target } from 'lucide-react';
 
 export default function App() {
@@ -107,12 +107,14 @@ export default function App() {
   const [isCropOpen, setIsCropOpen] = useState(false);
 
   // Composition Analysis & Guides State
-  const [compositionAnalysis, setCompositionAnalysis] = useState<CompositionAnalysis | null>(null);
-  const [isAnalyzingComposition, setIsAnalyzingComposition] = useState(false);
   const [isCompositionModalOpen, setIsCompositionModalOpen] = useState(false);
   const [guideType, setGuideType] = useState<CompositionGuideType>('none');
-  const lastAnalyzedSrcRef = useRef<string>('');
   const captionRequestInFlightRef = useRef(false);
+  const {
+    compositionAnalysis,
+    isAnalyzingComposition,
+    runCompositionAnalysis,
+  } = useCompositionAnalysis(activeImageSrc);
 
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -343,50 +345,6 @@ export default function App() {
       showToast('Исходное фото восстановлено!');
     }
   };
-
-  // Intelligent Composition Analysis
-  const runCompositionAnalysis = useCallback(async (customSrc?: string) => {
-    const srcToUse = customSrc || activeImageSrc;
-    if (!srcToUse) return;
-
-    setIsAnalyzingComposition(true);
-    try {
-      const imagePayload = await getImagePayloadFromUrl(srcToUse);
-      if (!imagePayload) {
-        return;
-      }
-      const res = await fetch('/api/analyze-composition', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: imagePayload.dataUrl,
-          mimeType: imagePayload.mimeType,
-          width: imagePayload.width,
-          height: imagePayload.height,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Analysis server error');
-      }
-
-      const data = await res.json();
-      if (data.analysis) {
-        setCompositionAnalysis(data.analysis);
-      }
-    } catch (err) {
-      console.warn('Composition analysis error:', err);
-    } finally {
-      setIsAnalyzingComposition(false);
-    }
-  }, [activeImageSrc]);
-
-  // Run analysis once per image source change; avoid StrictMode duplicate quota use.
-  useEffect(() => {
-    if (!activeImageSrc || lastAnalyzedSrcRef.current === activeImageSrc) return;
-    lastAnalyzedSrcRef.current = activeImageSrc;
-    runCompositionAnalysis(activeImageSrc);
-  }, [activeImageSrc, runCompositionAnalysis]);
 
   // Apply suggested text placements from composition analysis
   const handleApplyCompositionOptimization = () => {
