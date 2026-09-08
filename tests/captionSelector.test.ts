@@ -52,3 +52,24 @@ test('recent captions are penalized in favor of fresh concepts', () => {
 
   assert.equal(selected[0].headline, 'Дискета');
 });
+
+test('millennial selector downranks exhausted nostalgia clichés', () => {
+  const cliché = caption({
+    headline: 'Кассета снова',
+    topText: 'ПЕРЕМАТЫВАЮ КАССЕТУ КАРАНДАШОМ',
+    bottomText: 'ТАК ЭКОНОМИЛИ БАТАРЕЙКИ',
+  });
+  const fresher = caption({
+    headline: 'Фотолаборатория',
+    topText: 'ОТДАЛ ПЛЕНКУ НА ПРОЯВКУ',
+    bottomText: 'УЗНАЕШЬ ЧЕРЕЗ НЕДЕЛЮ, ПОЛУЧИЛИСЬ ЛИ КАНИКУЛЫ',
+    humorMechanic: 'Контраст',
+  });
+
+  const selected = selectBestCaptionSuggestions([cliché, fresher], {
+    limit: 1,
+    styleId: 'millennials',
+  });
+
+  assert.equal(selected[0].headline, 'Фотолаборатория');
+});
