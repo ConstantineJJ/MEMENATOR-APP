@@ -125,6 +125,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
   const [draggingItem, setDraggingItem] = useState<{
     type: 'box' | 'sticker' | 'sticker-scale' | 'box-scale';
     id: string;
+    pointerId: number;
     startX: number;
     startY: number;
     initialX: number;
@@ -170,16 +171,25 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
     }
   }, [loadedImage, textBoxes, stickers, filter, watermark, filterIntensity]);
 
-  // Drag handlers for direct on-canvas positioning with snapping
+  const canStartPointerInteraction = (e: React.PointerEvent) =>
+    e.isPrimary && (e.pointerType !== 'mouse' || e.button === 0);
+
+  // One Pointer Events path handles mouse, touch and stylus for canvas objects.
   const startDrag = useCallback(
     (
-      clientX: number,
-      clientY: number,
+      e: React.PointerEvent<HTMLElement>,
       type: 'box' | 'sticker',
       id: string,
       curX: number,
       curY: number
     ) => {
+      if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      e.stopPropagation();
+      e.preventDefault();
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {}
+
       if (type === 'box') {
         onSelectBox(id);
         setSelectedStickerId(null);
@@ -190,8 +200,9 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
       setDraggingItem({
         type,
         id,
-        startX: clientX,
-        startY: clientY,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
         initialX: curX,
         initialY: curY,
       });
@@ -199,33 +210,27 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
     [onSelectBox]
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent, type: 'box' | 'sticker', id: string, curX: number, curY: number) => {
-      e.stopPropagation();
-      e.preventDefault();
-      startDrag(e.clientX, e.clientY, type, id, curX, curY);
-    },
-    [startDrag]
-  );
-
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent, type: 'box' | 'sticker', id: string, curX: number, curY: number) => {
-      e.stopPropagation();
-      if (e.touches.length > 0) {
-        startDrag(e.touches[0].clientX, e.touches[0].clientY, type, id, curX, curY);
-      }
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>, type: 'box' | 'sticker', id: string, curX: number, curY: number) => {
+      startDrag(e, type, id, curX, curY);
     },
     [startDrag]
   );
 
   // Scale drag handle for stickers
-  const handleScaleMouseDown = (e: React.MouseEvent, id: string, currentScale: number) => {
+  const handleScalePointerDown = (e: React.PointerEvent<HTMLDivElement>, id: string, currentScale: number) => {
+    if (!canStartPointerInteraction(e)) return;
     e.stopPropagation();
     e.preventDefault();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
     setSelectedStickerId(id);
+    onSelectBox(null);
     setDraggingItem({
       type: 'sticker-scale',
       id,
+      pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
       initialX: 0,
@@ -235,13 +240,19 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
   };
 
   // Scale drag handle for text boxes
-  const handleBoxScaleMouseDown = (e: React.MouseEvent, id: string, currentFontSize: number) => {
+  const handleBoxScalePointerDown = (e: React.PointerEvent<HTMLDivElement>, id: string, currentFontSize: number) => {
+    if (!canStartPointerInteraction(e)) return;
     e.stopPropagation();
     e.preventDefault();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
     onSelectBox(id);
+    setSelectedStickerId(null);
     setDraggingItem({
       type: 'box-scale',
       id,
+      pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
       initialX: 0,
@@ -250,11 +261,12 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
     });
   };
 
-  // Global move & release listeners with snapping calculation
+  // Global pointer move & release listeners with snapping calculation
   useEffect(() => {
     const handleMove = (clientX: number, clientY: number) => {
       if (!draggingItem || !containerRef.current) return;
       const rect = canvasWrapperRef.current?.getBoundingClientRect() || containerRef.current.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
 
       // Sticker Scale mode
       if (draggingItem.type === 'sticker-scale') {
@@ -323,33 +335,27 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
       }
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!draggingItem || e.pointerId !== draggingItem.pointerId) return;
       handleMove(e.clientX, e.clientY);
     };
 
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        handleMove(e.touches[0].clientX, e.touches[0].clientY);
-      }
-    };
-
-    const handleEnd = () => {
+    const handlePointerEnd = (e: PointerEvent) => {
+      if (!draggingItem || e.pointerId !== draggingItem.pointerId) return;
       setDraggingItem(null);
       setActiveGuides({ vertical: false, horizontal: false, top: false, bottom: false });
     };
 
     if (draggingItem) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleEnd);
-      window.addEventListener('touchmove', handleTouchMove, { passive: true });
-      window.addEventListener('touchend', handleEnd);
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerEnd);
+      window.addEventListener('pointercancel', handlePointerEnd);
     }
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleEnd);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleEnd);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
     };
   }, [draggingItem, onUpdateBoxPosition, onUpdateStickerPosition, onUpdateStickerScale, onUpdateBoxFontSize]);
 
@@ -832,8 +838,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
               return (
                 <div
                   key={box.id}
-                  onMouseDown={(e) => handleMouseDown(e, 'box', box.id, box.x, box.y)}
-                  onTouchStart={(e) => handleTouchStart(e, 'box', box.id, box.x, box.y)}
+                  onPointerDown={(e) => handlePointerDown(e, 'box', box.id, box.x, box.y)}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectBox(box.id);
@@ -845,6 +850,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                     width: `${boxWidthPx}px`,
                     height: `${boxHeightPx}px`,
                     transform: transformStyle,
+                    touchAction: 'none',
                   }}
                   className={`absolute group cursor-grab active:cursor-grabbing select-none rounded-xl border-2 transition-all ${
                     isSelected
@@ -866,6 +872,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                   {isSelected && (
                     <div
                       className="absolute -top-11 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-neutral-950/95 border border-neutral-700/90 rounded-full px-2 py-0.5 shadow-2xl z-40 whitespace-nowrap"
+                      onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => e.stopPropagation()}
                     >
                       {/* Snap to Center X */}
@@ -916,7 +923,8 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                   {/* Corner Resize Handle for Text */}
                   {isSelected && onUpdateBoxFontSize && (
                     <div
-                      onMouseDown={(e) => handleBoxScaleMouseDown(e, box.id, box.fontSize)}
+                      onPointerDown={(e) => handleBoxScalePointerDown(e, box.id, box.fontSize)}
+                      style={{ touchAction: 'none' }}
                       className="absolute -bottom-2.5 -right-2.5 w-5 h-5 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-full flex items-center justify-center shadow-lg cursor-nwse-resize hover:scale-115 active:scale-95 transition-transform z-40 border border-neutral-950"
                       title="Потяните для изменения размера текста"
                     >
@@ -941,14 +949,14 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                     setSelectedStickerId(stk.id);
                     onSelectBox(null);
                   }}
-                  onMouseDown={(e) => handleMouseDown(e, 'sticker', stk.id, stk.x, stk.y)}
-                  onTouchStart={(e) => handleTouchStart(e, 'sticker', stk.id, stk.x, stk.y)}
+                  onPointerDown={(e) => handlePointerDown(e, 'sticker', stk.id, stk.x, stk.y)}
                   style={{
                     left: `${stk.x}%`,
                     top: `${stk.y}%`,
                     width: `${boxSize}px`,
                     height: `${boxSize}px`,
                     transform: 'translate(-50%, -50%)',
+                    touchAction: 'none',
                   }}
                   className={`absolute group cursor-grab active:cursor-grabbing select-none rounded-2xl border-2 transition-all flex items-center justify-center ${
                     isSelected
@@ -959,6 +967,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                 >
                   {/* Delete Button */}
                   <button
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
                       onDeleteSticker(stk.id);
@@ -973,7 +982,8 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
 
                   {/* Corner Resize Handle */}
                   <div
-                    onMouseDown={(e) => handleScaleMouseDown(e, stk.id, currentScale)}
+                    onPointerDown={(e) => handleScalePointerDown(e, stk.id, currentScale)}
+                    style={{ touchAction: 'none' }}
                     className={`absolute -bottom-2.5 -right-2.5 w-5 h-5 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-full flex items-center justify-center shadow cursor-nwse-resize hover:scale-115 active:scale-95 transition-transform z-40 ${
                       isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}
@@ -987,6 +997,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                     className={`absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-neutral-950/95 border border-neutral-700 rounded-full px-2 py-0.5 shadow-2xl pointer-events-auto z-40 transition-opacity whitespace-nowrap ${
                       isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
