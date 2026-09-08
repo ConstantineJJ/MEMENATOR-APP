@@ -38,5 +38,5 @@ test('recent caption ideas are explicitly fed back as repetition exclusions', ()
 
   assert.match(prompt, /НЕ повторяй/i);
   assert.match(prompt, /ПЕРЕМАТЫВАЮ КАССЕТУ КАРАНДАШОМ/);
-  assert.match(prompt, /разные культурные домена/i);
+  assert.match(prompt, /три\s+РАЗНЫХ\s+культурных\s+домена/i);
 });
