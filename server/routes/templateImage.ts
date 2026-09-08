@@ -27,6 +27,17 @@ function promptSeed(prompt: string): number {
   return hash >>> 0;
 }
 
+function isQuotaOrBillingError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('exceeded your current quota') ||
+    normalized.includes('resource_exhausted') ||
+    normalized.includes('quota exceeded') ||
+    normalized.includes('billing') ||
+    normalized.includes('429')
+  );
+}
+
 function generateFallbackSvg(prompt: string, aspectRatio = '1:1'): string {
   const dimensions: Record<string, [number, number]> = {
     '1:1': [800, 800],
@@ -154,7 +165,7 @@ export function registerTemplateImageRoute(app: Express) {
                 imageConfig,
               },
             }),
-            1,
+            0,
             700
           );
 
@@ -171,15 +182,32 @@ export function registerTemplateImageRoute(app: Express) {
 
           failures.push(`${modelName}: response did not contain image data`);
         } catch (error) {
-          const reason = parseErrorMessage(error).slice(0, 240);
+          const reason = parseErrorMessage(error).slice(0, 320);
           failures.push(`${modelName}: ${reason}`);
           console.warn(`[template-image] ${modelName} failed: ${reason}`);
+
+          if (isQuotaOrBillingError(reason)) {
+            return res.status(429).json({
+              code: 'IMAGE_GENERATION_QUOTA_EXHAUSTED',
+              requiresBilling: true,
+              error: 'Генерация изображений Gemini недоступна: для image-моделей исчерпана квота или не включён платный Gemini API. Проверьте Billing/Quota проекта Google AI Studio.',
+            });
+          }
         }
       }
 
       console.warn('[template-image] all image models failed:', failures.join(' | '));
     } catch (error) {
-      console.warn(`[template-image] Gemini client unavailable: ${parseErrorMessage(error)}`);
+      const reason = parseErrorMessage(error);
+      console.warn(`[template-image] Gemini client unavailable: ${reason}`);
+
+      if (isQuotaOrBillingError(reason)) {
+        return res.status(429).json({
+          code: 'IMAGE_GENERATION_QUOTA_EXHAUSTED',
+          requiresBilling: true,
+          error: 'Генерация изображений Gemini недоступна: для image-моделей исчерпана квота или не включён платный Gemini API. Проверьте Billing/Quota проекта Google AI Studio.',
+        });
+      }
     }
 
     return res.json({
