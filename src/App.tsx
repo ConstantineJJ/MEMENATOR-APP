@@ -25,14 +25,16 @@ import {
   SavedMemeState,
 } from './types';
 import { getImagePayloadFromUrl } from './utils/imageHelper';
-import { saveMemeToHistory } from './utils/memeStorage';
-import { generateMemeThumbnail } from './utils/thumbnailGenerator';
 import { MemeHistorySnapshot, useMemeUndoHistory } from './hooks/useMemeUndoHistory';
 import {
   MemeDraftSnapshot,
   MemeDraftState,
   useMemeDraftPersistence,
 } from './hooks/useMemeDraftPersistence';
+import {
+  MemeHistoryAutosaveSnapshot,
+  useMemeHistoryAutosave,
+} from './hooks/useMemeHistoryAutosave';
 import { Sparkles, CheckCircle, Crop, Undo2, Redo2, RotateCcw, Target } from 'lucide-react';
 
 export default function App() {
@@ -117,10 +119,6 @@ export default function App() {
   // Single-screen Sidebar Tabs state
   const [rightTab, setRightTab] = useState<'all' | 'text' | 'suggestions'>('all');
 
-  // Active Meme Reference in History (to prevent duplicate history entries while actively editing)
-  const activeMemeIdRef = useRef<string | undefined>(undefined);
-  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
-
   const showToast = useCallback((msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 2800);
@@ -189,52 +187,27 @@ export default function App() {
     onRestored: handleDraftRestored,
   });
 
-  // Auto-record to Meme History list for the "Лента" -> "История" tab
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      try {
-        if (!activeImageSrc) return;
+  const currentHistoryAutosaveSnapshot: MemeHistoryAutosaveSnapshot = {
+    activeImageSrc,
+    textBoxes,
+    stickers,
+    filter,
+    filterIntensity,
+    watermark,
+    selectedTemplateId,
+  };
 
-        const mainText =
-          textBoxes.find((b) => b.text.trim())?.text.trim() || 'Мем без названия';
-
-        const thumbnail = await generateMemeThumbnail(
-          activeImageSrc,
-          textBoxes,
-          stickers,
-          filter,
-          watermark,
-          filterIntensity
-        );
-
-        const saved = saveMemeToHistory({
-          id: activeMemeIdRef.current,
-          title: mainText,
-          thumbnailUrl: thumbnail,
-          imageSrc: activeImageSrc,
-          textBoxes,
-          stickers,
-          filter,
-          filterIntensity,
-          watermark,
-          templateId: selectedTemplateId,
-        });
-
-        if (!activeMemeIdRef.current) {
-          activeMemeIdRef.current = saved.id;
-        }
-        setHistoryRefreshTrigger((prev) => prev + 1);
-      } catch (err) {
-        console.warn('History autosave error:', err);
-      }
-    }, 1200);
-
-    return () => clearTimeout(timer);
-  }, [textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc, selectedTemplateId]);
+  const {
+    historyRefreshTrigger,
+    setActiveMemeId,
+    startNewMeme,
+  } = useMemeHistoryAutosave({
+    currentSnapshot: currentHistoryAutosaveSnapshot,
+  });
 
   // Restore Meme from History or Favorites tab
   const handleRestoreMeme = useCallback((saved: SavedMemeState) => {
-    activeMemeIdRef.current = saved.id;
+    setActiveMemeId(saved.id);
     setActiveImageSrc(saved.imageSrc);
     setOriginalImageSrc(saved.imageSrc);
     setTextBoxes(saved.textBoxes);
@@ -253,11 +226,11 @@ export default function App() {
       watermark: saved.watermark,
       activeImageSrc: saved.imageSrc,
     });
-  }, [pushToHistory]);
+  }, [pushToHistory, setActiveMemeId]);
 
   // Select Web Template from Multi-Source Aggregator tab
   const handleSelectWebTemplate = useCallback((item: WebMemeItem) => {
-    activeMemeIdRef.current = undefined; // Start fresh history item for new template
+    startNewMeme();
     setSelectedTemplateId(item.id);
     setActiveImageSrc(item.imageUrl);
     setOriginalImageSrc(item.imageUrl);
@@ -293,11 +266,11 @@ export default function App() {
       watermark,
       activeImageSrc: item.imageUrl,
     });
-  }, [pushToHistory, textBoxes, stickers, filter, filterIntensity, watermark]);
+  }, [pushToHistory, textBoxes, stickers, filter, filterIntensity, watermark, startNewMeme]);
 
   // Switch Template from catalog
   const handleSelectTemplate = (template: MemeTemplate) => {
-    activeMemeIdRef.current = undefined;
+    startNewMeme();
     setSelectedTemplateId(template.id);
     setActiveImageSrc(template.url);
     setOriginalImageSrc(template.url);
@@ -320,7 +293,7 @@ export default function App() {
 
   // Switch Template from Live Internet Trending Feed
   const handleSelectTrendingTemplate = (template: TrendingWebMeme) => {
-    activeMemeIdRef.current = undefined;
+    startNewMeme();
     setSelectedTemplateId(template.id);
     setActiveImageSrc(template.url);
     setOriginalImageSrc(template.url);
@@ -343,7 +316,7 @@ export default function App() {
 
   // Upload Custom Image
   const handleUploadImage = (file: File) => {
-    activeMemeIdRef.current = undefined;
+    startNewMeme();
     const reader = new FileReader();
     reader.onload = (e) => {
       if (e.target?.result) {
