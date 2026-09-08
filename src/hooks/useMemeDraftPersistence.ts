@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MemeFilter, MemeSticker, TextBox } from '../types';
 import { getIndexedValue, putIndexedValue } from '../utils/indexedDbStorage';
 
@@ -50,8 +50,12 @@ async function readPersistedDraft(): Promise<MemeDraftState | null> {
 
 /**
  * Restores and autosaves the editable project draft.
- * Autosave is intentionally gated until the initial restore attempt finishes so
- * a slow IndexedDB read can never be overwritten by the default editor state.
+ *
+ * Restoration is a one-shot startup operation. Callback identities are kept in
+ * refs so ordinary editor renders cannot retrigger IndexedDB recovery and
+ * overwrite the user's current edits. Autosave remains gated until that single
+ * recovery attempt finishes, preventing the default editor state from racing a
+ * slow IndexedDB read.
  */
 export function useMemeDraftPersistence({
   currentDraft,
@@ -62,23 +66,31 @@ export function useMemeDraftPersistence({
   const [isDraftSaved, setIsDraftSaved] = useState(false);
   const [restorationComplete, setRestorationComplete] = useState(false);
   const currentDraftRef = useRef(currentDraft);
-  currentDraftRef.current = currentDraft;
+  const applyDraftRef = useRef(applyDraft);
+  const onRestoredRef = useRef(onRestored);
+  const restorationStartedRef = useRef(false);
 
-  const restoreDraft = useCallback(async () => {
-    const parsed = await readPersistedDraft();
-    if (!parsed) return false;
-    applyDraft(parsed);
-    setIsDraftSaved(true);
-    onRestored?.();
-    return true;
-  }, [applyDraft, onRestored]);
+  currentDraftRef.current = currentDraft;
+  applyDraftRef.current = applyDraft;
+  onRestoredRef.current = onRestored;
 
   useEffect(() => {
+    // React StrictMode may replay mount effects in development. This guard also
+    // protects against any future refactor that accidentally remounts the effect
+    // without intending to recover the same draft twice.
+    if (restorationStartedRef.current) return;
+    restorationStartedRef.current = true;
+
     let cancelled = false;
 
     void (async () => {
       try {
-        if (!cancelled) await restoreDraft();
+        const parsed = await readPersistedDraft();
+        if (cancelled || !parsed) return;
+
+        applyDraftRef.current(parsed);
+        setIsDraftSaved(true);
+        onRestoredRef.current?.();
       } catch (err) {
         console.warn('Draft recovery failed:', err);
       } finally {
@@ -89,7 +101,7 @@ export function useMemeDraftPersistence({
     return () => {
       cancelled = true;
     };
-  }, [restoreDraft]);
+  }, []);
 
   const serializedDraft = JSON.stringify(currentDraft);
 
