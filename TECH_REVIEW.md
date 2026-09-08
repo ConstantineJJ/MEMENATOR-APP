@@ -21,7 +21,7 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 
 ## P2 — polish / maintainability
 - [ ] Make Fill preview match export semantics.
-- [ ] Consolidate canvas/crop pointer and touch interactions with Pointer Events.
+- [x] Consolidate canvas/crop pointer and touch interactions with Pointer Events. Text, sticker, sticker-scale, text-scale, crop move and crop resize now share mouse/touch/stylus-compatible pointer handling with pointer cancellation and touch-action safeguards.
 - [x] Clean up initial Undo/Redo duplicate snapshot behavior.
 - [x] Make autosave status reflect pending vs saved state.
 - [x] Label composition fallback as heuristic rather than real AI analysis.
