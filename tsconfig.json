@@ -25,7 +25,6 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "strict": true,
-    "noUncheckedIndexedAccess": true,
     "noUncheckedSideEffectImports": true
   }
 }
