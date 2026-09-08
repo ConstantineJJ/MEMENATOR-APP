@@ -35,7 +35,7 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [x] Add permanent read-only typecheck/build CI safety net.
 - [x] Add initial automated tests to the CI safety net (aggregator normalization/signature coverage); expand coverage as modules are refactored.
 - [x] Read `PORT` from the environment.
-- [ ] Replace title/filename pseudo-signatures with a real perceptual image hash for stronger cross-provider deduplication.
+- [x] Replace visible-feed title/filename pseudo-signatures with a real pixel-based 64-bit dHash pass. The client now requests a wider candidate pool, hashes actual thumbnail pixels with bounded concurrency, rejects near-duplicates using Hamming distance against both the current batch and recently shown memes, stores `dhash:` signatures for future refreshes, and falls back to existing provider metadata dedupe only when pixel hashing is unavailable.
 
 ## Verification rule
 For each non-trivial code pass: run TypeScript typecheck, automated tests, and production build before marking the item complete. Keep verification workflows read-only; do not use self-modifying GitHub Actions workflows.
