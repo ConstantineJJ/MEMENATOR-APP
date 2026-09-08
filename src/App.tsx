@@ -1,29 +1,19 @@
-import React, { useState, useCallback } from 'react';
-import { MemeCanvas } from './components/MemeCanvas';
-import { MagicCaptionModal } from './components/MagicCaptionModal';
+import React, { useCallback, useState } from 'react';
+import { CheckCircle } from 'lucide-react';
+import { CompositionAnalysisModal } from './components/CompositionAnalysisModal';
 import { CropZoomModal } from './components/CropZoomModal';
-import { RandomMemesPanel } from './components/RandomMemesPanel';
 import { HistoryAndFavoritesPanel } from './components/HistoryAndFavoritesPanel';
+import { ImageUploadBar } from './components/ImageUploadBar';
+import { MagicCaptionModal } from './components/MagicCaptionModal';
+import { MemeCanvas } from './components/MemeCanvas';
 import { MemeTextInputBar } from './components/MemeTextInputBar';
 import { MemeTextStyleBar } from './components/MemeTextStyleBar';
-import { StickersAndFilters } from './components/StickersAndFilters';
-import { ImageUploadBar } from './components/ImageUploadBar';
+import { RandomMemesPanel } from './components/RandomMemesPanel';
 import { SuggestedMemesPanel } from './components/SuggestedMemesPanel';
-import { CompositionAnalysisModal } from './components/CompositionAnalysisModal';
 import { WatermelonLogo } from './components/WatermelonLogo';
 import { TRENDING_TEMPLATES } from './data/templates';
-import {
-  TextBox,
-  MemeSticker,
-  MemeFilter,
-  CaptionSuggestion,
-  MemeTemplate,
-  TrendingWebMeme,
-  CompositionGuideType,
-  WebMemeItem,
-  SavedMemeState,
-} from './types';
-import { MemeHistorySnapshot, useMemeUndoHistory } from './hooks/useMemeUndoHistory';
+import { useCompositionAnalysis } from './hooks/useCompositionAnalysis';
+import { useMagicCaptions } from './hooks/useMagicCaptions';
 import {
   MemeDraftSnapshot,
   MemeDraftState,
@@ -33,78 +23,83 @@ import {
   MemeHistoryAutosaveSnapshot,
   useMemeHistoryAutosave,
 } from './hooks/useMemeHistoryAutosave';
-import { useCompositionAnalysis } from './hooks/useCompositionAnalysis';
-import { useMagicCaptions } from './hooks/useMagicCaptions';
-import { CheckCircle } from 'lucide-react';
+import { MemeHistorySnapshot, useMemeUndoHistory } from './hooks/useMemeUndoHistory';
+import {
+  CaptionSuggestion,
+  CompositionGuideType,
+  MemeFilter,
+  MemeSticker,
+  SavedMemeState,
+  TextBox,
+  WebMemeItem,
+} from './types';
+
+const INITIAL_TEXT_BOXES: TextBox[] = [
+  {
+    id: 'top-1',
+    text: TRENDING_TEMPLATES[0].defaultTopText || 'КОГДА СКАЗАЛИ РАСШИРИТЬ БИЗНЕС',
+    x: 50,
+    y: 12,
+    fontSize: 34,
+    fontFamily: 'Anton',
+    color: '#ffffff',
+    strokeColor: '#000000',
+    strokeWidth: 0,
+    isUppercase: true,
+    isBold: true,
+    textAlign: 'center',
+    shadow: true,
+    shadowColor: 'rgba(0, 0, 0, 0.95)',
+    shadowBlur: 14,
+    shadowOffsetX: 2,
+    shadowOffsetY: 3,
+    hasBackground: false,
+  },
+  {
+    id: 'bottom-1',
+    text: TRENDING_TEMPLATES[0].defaultBottomText || 'И Я ПОНЯЛ ЭТО БУКВАЛЬНО',
+    x: 50,
+    y: 88,
+    fontSize: 34,
+    fontFamily: 'Anton',
+    color: '#ffffff',
+    strokeColor: '#000000',
+    strokeWidth: 0,
+    isUppercase: true,
+    isBold: true,
+    textAlign: 'center',
+    shadow: true,
+    shadowColor: 'rgba(0, 0, 0, 0.95)',
+    shadowBlur: 14,
+    shadowOffsetX: 2,
+    shadowOffsetY: 3,
+    hasBackground: false,
+  },
+];
 
 export default function App() {
-  // Active Meme Image & Original for Cropping Reset
-  const [activeImageSrc, setActiveImageSrc] = useState<string>(TRENDING_TEMPLATES[0].url);
+  const [activeImageSrc, setActiveImageSrc] = useState(TRENDING_TEMPLATES[0].url);
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(TRENDING_TEMPLATES[0].url);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(TRENDING_TEMPLATES[0].id);
-
-  // Text Boxes State
-  const [textBoxes, setTextBoxes] = useState<TextBox[]>([
-    {
-      id: 'top-1',
-      text: TRENDING_TEMPLATES[0].defaultTopText || 'КОГДА СКАЗАЛИ РАСШИРИТЬ БИЗНЕС',
-      x: 50,
-      y: 12,
-      fontSize: 34,
-      fontFamily: 'Anton',
-      color: '#ffffff',
-      strokeColor: '#000000',
-      strokeWidth: 0,
-      isUppercase: true,
-      isBold: true,
-      textAlign: 'center',
-      shadow: true,
-      shadowColor: 'rgba(0, 0, 0, 0.95)',
-      shadowBlur: 14,
-      shadowOffsetX: 2,
-      shadowOffsetY: 3,
-      hasBackground: false,
-    },
-    {
-      id: 'bottom-1',
-      text: TRENDING_TEMPLATES[0].defaultBottomText || 'И Я ПОНЯЛ ЭТО БУКВАЛЬНО',
-      x: 50,
-      y: 88,
-      fontSize: 34,
-      fontFamily: 'Anton',
-      color: '#ffffff',
-      strokeColor: '#000000',
-      strokeWidth: 0,
-      isUppercase: true,
-      isBold: true,
-      textAlign: 'center',
-      shadow: true,
-      shadowColor: 'rgba(0, 0, 0, 0.95)',
-      shadowBlur: 14,
-      shadowOffsetX: 2,
-      shadowOffsetY: 3,
-      hasBackground: false,
-    },
-  ]);
-
+  const [textBoxes, setTextBoxes] = useState<TextBox[]>(INITIAL_TEXT_BOXES);
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>('top-1');
 
-  // Stickers & Filters
-  const [stickers, setStickrs] = useState<MemeSticker[]>([]);
+  // Filters/stickers remain part of the editable project format for backward
+  // compatibility with saved memes, but their dedicated sidebar block is hidden.
+  const [stickers, setStickers] = useState<MemeSticker[]>([]);
   const [filter, setFilter] = useState<MemeFilter>('none');
-  const [filterIntensity, setFilterIntensity] = useState<number>(100);
-  const [watermark, setWatermark] = useState<boolean>(false);
+  const [filterIntensity, setFilterIntensity] = useState(100);
+  const [watermark, setWatermark] = useState(false);
 
   const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
   const [isCropOpen, setIsCropOpen] = useState(false);
   const [isCompositionModalOpen, setIsCompositionModalOpen] = useState(false);
   const [guideType, setGuideType] = useState<CompositionGuideType>('none');
   const [notification, setNotification] = useState<string | null>(null);
-  const [rightTab, setRightTab] = useState<'all' | 'text' | 'suggestions'>('all');
 
-  const showToast = useCallback((msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 2800);
+  const showToast = useCallback((message: string) => {
+    setNotification(message);
+    window.setTimeout(() => setNotification(null), 2800);
   }, []);
 
   const {
@@ -114,7 +109,7 @@ export default function App() {
   } = useCompositionAnalysis(activeImageSrc);
 
   const handleCaptionsGenerated = useCallback(() => {
-    showToast('Готово! 5 вариантов мема предложены');
+    showToast('Готово! Варианты мема предложены');
   }, [showToast]);
 
   const {
@@ -133,13 +128,13 @@ export default function App() {
     onGenerated: handleCaptionsGenerated,
   });
 
-  const applyHistorySnapshot = useCallback((targetState: MemeHistorySnapshot) => {
-    setTextBoxes(targetState.textBoxes);
-    setStickrs(targetState.stickers);
-    setFilter(targetState.filter);
-    setFilterIntensity(targetState.filterIntensity ?? 100);
-    setWatermark(targetState.watermark);
-    setActiveImageSrc(targetState.activeImageSrc);
+  const applyHistorySnapshot = useCallback((snapshot: MemeHistorySnapshot) => {
+    setTextBoxes(snapshot.textBoxes);
+    setStickers(snapshot.stickers);
+    setFilter(snapshot.filter);
+    setFilterIntensity(snapshot.filterIntensity ?? 100);
+    setWatermark(snapshot.watermark);
+    setActiveImageSrc(snapshot.activeImageSrc);
   }, []);
 
   const currentHistorySnapshot: MemeHistorySnapshot = {
@@ -164,20 +159,16 @@ export default function App() {
     onRedo: () => showToast('Действие повторено (Redo)'),
   });
 
-  const applyDraft = useCallback((parsed: MemeDraftState) => {
-    setTextBoxes(parsed.textBoxes);
-    if (Array.isArray(parsed.stickers)) setStickrs(parsed.stickers);
-    if (parsed.filter) setFilter(parsed.filter);
-    if (typeof parsed.filterIntensity === 'number') setFilterIntensity(parsed.filterIntensity);
-    if (parsed.watermark !== undefined) setWatermark(parsed.watermark);
-    setActiveImageSrc(parsed.activeImageSrc);
-    if (parsed.originalImageSrc) setOriginalImageSrc(parsed.originalImageSrc);
-    if (parsed.selectedTemplateId !== undefined) setSelectedTemplateId(parsed.selectedTemplateId);
+  const applyDraft = useCallback((draft: MemeDraftState) => {
+    setTextBoxes(draft.textBoxes);
+    if (Array.isArray(draft.stickers)) setStickers(draft.stickers);
+    if (draft.filter) setFilter(draft.filter);
+    if (typeof draft.filterIntensity === 'number') setFilterIntensity(draft.filterIntensity);
+    if (draft.watermark !== undefined) setWatermark(draft.watermark);
+    setActiveImageSrc(draft.activeImageSrc);
+    if (draft.originalImageSrc) setOriginalImageSrc(draft.originalImageSrc);
+    if (draft.selectedTemplateId !== undefined) setSelectedTemplateId(draft.selectedTemplateId);
   }, []);
-
-  const handleDraftRestored = useCallback(() => {
-    showToast('Черновик успешно восстановлен из памяти');
-  }, [showToast]);
 
   const currentDraft: MemeDraftSnapshot = {
     textBoxes,
@@ -193,7 +184,7 @@ export default function App() {
   const { isDraftSaved } = useMemeDraftPersistence({
     currentDraft,
     applyDraft,
-    onRestored: handleDraftRestored,
+    onRestored: () => showToast('Черновик успешно восстановлен из памяти'),
   });
 
   const currentHistoryAutosaveSnapshot: MemeHistoryAutosaveSnapshot = {
@@ -210,17 +201,14 @@ export default function App() {
     historyRefreshTrigger,
     setActiveMemeId,
     startNewMeme,
-  } = useMemeHistoryAutosave({
-    currentSnapshot: currentHistoryAutosaveSnapshot,
-  });
+  } = useMemeHistoryAutosave({ currentSnapshot: currentHistoryAutosaveSnapshot });
 
-  // Restore Meme from History or Favorites tab
   const handleRestoreMeme = useCallback((saved: SavedMemeState) => {
     setActiveMemeId(saved.id);
     setActiveImageSrc(saved.imageSrc);
     setOriginalImageSrc(saved.imageSrc);
     setTextBoxes(saved.textBoxes);
-    setStickrs(saved.stickers);
+    setStickers(saved.stickers);
     setFilter(saved.filter);
     setFilterIntensity(saved.filterIntensity ?? 100);
     setWatermark(saved.watermark);
@@ -237,7 +225,6 @@ export default function App() {
     });
   }, [clearCaptions, pushToHistory, setActiveMemeId]);
 
-  // Select Web Template from Multi-Source Aggregator tab
   const handleSelectWebTemplate = useCallback((item: WebMemeItem) => {
     startNewMeme();
     setSelectedTemplateId(item.id);
@@ -245,274 +232,143 @@ export default function App() {
     setOriginalImageSrc(item.imageUrl);
     clearCaptions();
 
-    setTextBoxes((prev) => [
-      {
-        ...prev[0],
-        text: item.defaultTopText || '',
-      },
-      {
-        ...prev[1],
-        text: item.defaultBottomText || '',
-      },
-      ...prev.slice(2),
-    ]);
+    const nextTextBoxes = [
+      { ...textBoxes[0], text: item.defaultTopText || '' },
+      { ...textBoxes[1], text: item.defaultBottomText || '' },
+      ...textBoxes.slice(2),
+    ];
+    setTextBoxes(nextTextBoxes);
 
     pushToHistory({
-      textBoxes: [
-        {
-          ...textBoxes[0],
-          text: item.defaultTopText || '',
-        },
-        {
-          ...textBoxes[1],
-          text: item.defaultBottomText || '',
-        },
-        ...textBoxes.slice(2),
-      ],
+      textBoxes: nextTextBoxes,
       stickers,
       filter,
       filterIntensity,
       watermark,
       activeImageSrc: item.imageUrl,
     });
-  }, [clearCaptions, pushToHistory, textBoxes, stickers, filter, filterIntensity, watermark, startNewMeme]);
+  }, [clearCaptions, filter, filterIntensity, pushToHistory, startNewMeme, stickers, textBoxes, watermark]);
 
-  // Switch Template from catalog
-  const handleSelectTemplate = (template: MemeTemplate) => {
-    startNewMeme();
-    setSelectedTemplateId(template.id);
-    setActiveImageSrc(template.url);
-    setOriginalImageSrc(template.url);
-    clearCaptions();
-
-    setTextBoxes((prev) => [
-      {
-        ...prev[0],
-        text: template.defaultTopText || '',
-      },
-      {
-        ...prev[1],
-        text: template.defaultBottomText || '',
-      },
-      ...prev.slice(2),
-    ]);
-
-    showToast(`Загружен шаблон "${template.name}"`);
-  };
-
-  // Switch Template from Live Internet Trending Feed
-  const handleSelectTrendingTemplate = (template: TrendingWebMeme) => {
-    startNewMeme();
-    setSelectedTemplateId(template.id);
-    setActiveImageSrc(template.url);
-    setOriginalImageSrc(template.url);
-    clearCaptions();
-
-    setTextBoxes((prev) => [
-      {
-        ...prev[0],
-        text: template.defaultTopText || '',
-      },
-      {
-        ...prev[1],
-        text: template.defaultBottomText || '',
-      },
-      ...prev.slice(2),
-    ]);
-
-    showToast(`Выбран тренд: "${template.name}"`);
-  };
-
-  // Upload Custom Image
-  const handleUploadImage = (file: File) => {
+  const handleUploadImage = useCallback((file: File) => {
     startNewMeme();
     const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        const resultUrl = e.target.result as string;
-        setActiveImageSrc(resultUrl);
-        setOriginalImageSrc(resultUrl);
-        setSelectedTemplateId(null);
-        clearCaptions();
-        showToast('Фото загружено! Нажмите «Замемить» для создания мема.');
-      }
+    reader.onload = (event) => {
+      if (!event.target?.result) return;
+      const resultUrl = event.target.result as string;
+      setActiveImageSrc(resultUrl);
+      setOriginalImageSrc(resultUrl);
+      setSelectedTemplateId(null);
+      clearCaptions();
+      showToast('Фото загружено! Нажмите «Замемить» для создания мема.');
     };
     reader.readAsDataURL(file);
-  };
+  }, [clearCaptions, showToast, startNewMeme]);
 
-  // Crop Handlers
-  const handleApplyCrop = (croppedDataUrl: string) => {
+  const handleApplyCrop = useCallback((croppedDataUrl: string) => {
     setActiveImageSrc(croppedDataUrl);
     showToast('Кадрирование успешно применено!');
-  };
+  }, [showToast]);
 
-  const handleResetOriginalImage = () => {
-    if (originalImageSrc) {
-      setActiveImageSrc(originalImageSrc);
-      showToast('Исходное фото восстановлено!');
-    }
-  };
+  const handleResetOriginalImage = useCallback(() => {
+    if (!originalImageSrc) return;
+    setActiveImageSrc(originalImageSrc);
+    showToast('Исходное фото восстановлено!');
+  }, [originalImageSrc, showToast]);
 
-  // Apply suggested text placements from composition analysis
-  const handleApplyCompositionOptimization = () => {
+  const handleApplyCompositionOptimization = useCallback(() => {
     if (!compositionAnalysis?.suggestedTextPlacements) return;
     const { topTextY, bottomTextY, align, suggestedFontSize } = compositionAnalysis.suggestedTextPlacements;
 
-    setTextBoxes((prev) => {
-      const updated = [...prev];
-      if (updated.length >= 1) {
-        updated[0] = {
-          ...updated[0],
-          y: topTextY ?? 10,
-          textAlign: (align as any) || updated[0].textAlign,
-          fontSize: suggestedFontSize ? Math.max(26, Math.min(suggestedFontSize, 42)) : updated[0].fontSize,
-        };
-      }
-      if (updated.length >= 2) {
-        updated[1] = {
-          ...updated[1],
-          y: bottomTextY ?? 90,
-          textAlign: (align as any) || updated[1].textAlign,
-          fontSize: suggestedFontSize ? Math.max(26, Math.min(suggestedFontSize, 42)) : updated[1].fontSize,
-        };
-      }
-      return updated;
-    });
+    setTextBoxes((previous) => previous.map((box, index) => {
+      if (index > 1) return box;
+      return {
+        ...box,
+        y: index === 0 ? (topTextY ?? 10) : (bottomTextY ?? 90),
+        textAlign: (align as TextBox['textAlign']) || box.textAlign,
+        fontSize: suggestedFontSize
+          ? Math.max(26, Math.min(suggestedFontSize, 42))
+          : box.fontSize,
+      };
+    }));
 
     setGuideType('zones');
     showToast('Текст оптимизирован под композицию кадра!');
-  };
+  }, [compositionAnalysis, showToast]);
 
-  // Open AI Suggestions panel & trigger generation
-  const handleOpenMagicCaptions = () => {
-    setRightTab('suggestions');
+  const handleOpenMagicCaptions = useCallback(() => {
     if (captions.length === 0 && !isGeneratingCaptions) {
       void generateMagicCaptions();
     }
-  };
+  }, [captions.length, generateMagicCaptions, isGeneratingCaptions]);
 
-  // Apply chosen suggestion to canvas text boxes
-  const handleApplyCaption = (caption: CaptionSuggestion) => {
-    setTextBoxes((prev) => {
-      const updated = [...prev];
-      if (updated[0]) {
-        updated[0] = {
-          ...updated[0],
-          text: caption.topText || '',
-        };
-      }
-      if (updated[1]) {
-        updated[1] = {
-          ...updated[1],
-          text: caption.bottomText || '',
-        };
-      }
-      return updated;
-    });
-
+  const handleApplyCaption = useCallback((caption: CaptionSuggestion) => {
+    setTextBoxes((previous) => previous.map((box, index) => {
+      if (index === 0) return { ...box, text: caption.topText || '' };
+      if (index === 1) return { ...box, text: caption.bottomText || '' };
+      return box;
+    }));
     showToast(`Применен мем: "${caption.headline}"`);
-  };
+  }, [showToast]);
 
-  // Text Box CRUD & Position handlers
-  const handleUpdateTextBox = (id: string, updates: Partial<TextBox>) => {
-    setTextBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, ...updates } : box))
-    );
-  };
+  const handleUpdateTextBox = useCallback((id: string, updates: Partial<TextBox>) => {
+    setTextBoxes((previous) => previous.map((box) => (box.id === id ? { ...box, ...updates } : box)));
+  }, []);
 
-  const handleUpdateBoxPosition = (id: string, x: number, y: number) => {
-    setTextBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, x, y } : box))
-    );
-  };
+  const handleUpdateBoxPosition = useCallback((id: string, x: number, y: number) => {
+    setTextBoxes((previous) => previous.map((box) => (box.id === id ? { ...box, x, y } : box)));
+  }, []);
 
-  const handleUpdateBoxFontSize = (id: string, newSize: number) => {
-    setTextBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, fontSize: newSize } : box))
-    );
-  };
+  const handleUpdateBoxFontSize = useCallback((id: string, fontSize: number) => {
+    setTextBoxes((previous) => previous.map((box) => (box.id === id ? { ...box, fontSize } : box)));
+  }, []);
 
-  const handleAddTextBox = () => {
-    const newId = `box-${Date.now()}`;
+  const handleAddTextBox = useCallback(() => {
+    const id = `box-${Date.now()}`;
     const newBox: TextBox = {
-      id: newId,
+      ...INITIAL_TEXT_BOXES[0],
+      id,
       text: 'НОВЫЙ ТЕКСТ',
       x: 50,
       y: 50,
       fontSize: 32,
-      fontFamily: 'Anton',
-      color: '#ffffff',
-      strokeColor: '#000000',
-      strokeWidth: 0,
-      isUppercase: true,
-      isBold: true,
-      textAlign: 'center',
-      shadow: true,
-      shadowColor: 'rgba(0, 0, 0, 0.95)',
-      shadowBlur: 14,
-      shadowOffsetX: 2,
-      shadowOffsetY: 3,
-      hasBackground: false,
     };
-    setTextBoxes((prev) => [...prev, newBox]);
-    setSelectedBoxId(newId);
+    setTextBoxes((previous) => [...previous, newBox]);
+    setSelectedBoxId(id);
     showToast('Добавлен новый текстовый блок');
-  };
+  }, [showToast]);
 
-  const handleRemoveTextBox = (id: string) => {
-    if (textBoxes.length <= 1) return;
-    setTextBoxes((prev) => prev.filter((b) => b.id !== id));
-    setSelectedBoxId(textBoxes[0]?.id || null);
-  };
+  const handleRemoveTextBox = useCallback((id: string) => {
+    setTextBoxes((previous) => {
+      if (previous.length <= 1) return previous;
+      const next = previous.filter((box) => box.id !== id);
+      setSelectedBoxId((selected) => selected === id ? (next[0]?.id ?? null) : selected);
+      return next;
+    });
+  }, []);
 
-  const handleResetPositions = () => {
-    setTextBoxes((prev) =>
-      prev.map((box, idx) => {
-        if (idx === 0) return { ...box, x: 50, y: 12 };
-        if (idx === 1) return { ...box, x: 50, y: 88 };
-        return { ...box, x: 50, y: 50 };
-      })
-    );
-    showToast('Позиции текста сброшены (верх и низ)');
-  };
-
-  // Sticker Management
-  const handleAddSticker = (
-    type: any,
-    label: string,
-    emoji?: string,
-    stickerId?: string
-  ) => {
-    const newSticker: MemeSticker = {
-      id: `sticker-${Date.now()}`,
-      label,
-      emoji,
-      type,
-      stickerId: stickerId || type,
+  const handleResetPositions = useCallback(() => {
+    setTextBoxes((previous) => previous.map((box, index) => ({
+      ...box,
       x: 50,
-      y: 45,
-      scale: 1,
-      rotation: 0,
-    };
-    setStickrs((prev) => [...prev, newSticker]);
-    showToast(`Наклейка добавлена: ${label}`);
-  };
+      y: index === 0 ? 12 : index === 1 ? 88 : 50,
+    })));
+    showToast('Позиции текста сброшены (верх и низ)');
+  }, [showToast]);
 
-  const handleUpdateStickerPosition = (id: string, x: number, y: number) => {
-    setStickrs((prev) => prev.map((s) => (s.id === id ? { ...s, x, y } : s)));
-  };
+  const handleUpdateStickerPosition = useCallback((id: string, x: number, y: number) => {
+    setStickers((previous) => previous.map((sticker) => sticker.id === id ? { ...sticker, x, y } : sticker));
+  }, []);
 
-  const handleUpdateStickerScale = (id: string, newScale: number) => {
-    setStickrs((prev) => prev.map((s) => (s.id === id ? { ...s, scale: newScale } : s)));
-  };
+  const handleUpdateStickerScale = useCallback((id: string, scale: number) => {
+    setStickers((previous) => previous.map((sticker) => sticker.id === id ? { ...sticker, scale } : sticker));
+  }, []);
 
-  const handleDeleteSticker = (id: string) => {
-    setStickrs((prev) => prev.filter((s) => s.id !== id));
-  };
+  const handleDeleteSticker = useCallback((id: string) => {
+    setStickers((previous) => previous.filter((sticker) => sticker.id !== id));
+  }, []);
 
   return (
     <div className="h-screen max-h-screen w-screen bg-neutral-950 text-neutral-100 flex flex-col overflow-hidden antialiased selection:bg-rose-500 selection:text-white">
-      {/* Toast Notification */}
       {notification && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-neutral-900/95 border border-rose-500/40 text-neutral-100 text-xs font-semibold px-4 py-1.5 rounded-full shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2">
           <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
@@ -520,13 +376,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Studio Header with MEMENATOR branding & Watermelon Mascot */}
       <header className="h-14 sm:h-16 border-b border-neutral-800/80 bg-neutral-950/95 backdrop-blur px-3 sm:px-5 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center shrink-0">
-            <WatermelonLogo size={42} />
-          </div>
-
+          <WatermelonLogo size={42} />
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl sm:text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-rose-500 via-emerald-400 to-amber-300 uppercase leading-none font-['Anton',sans-serif]">
               MEMENATOR
@@ -542,11 +394,9 @@ export default function App() {
           <span>Автосохранение активно</span>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-neutral-400">
-          <span className="hidden lg:inline text-neutral-500 text-[11px] font-semibold">
-            Холст в центре • ИИ справа
-          </span>
-        </div>
+        <span className="hidden lg:inline text-neutral-500 text-[11px] font-semibold">
+          Холст в центре • ИИ справа
+        </span>
       </header>
 
       <main className="flex-1 min-h-0 w-full px-2 sm:px-3 py-2 grid grid-cols-12 gap-2 sm:gap-2.5 items-stretch overflow-hidden">
@@ -569,19 +419,8 @@ export default function App() {
             />
           </div>
 
-          <div className="h-[40%] min-h-0 flex flex-col flex-1">
-            <StickersAndFilters
-              filter={filter}
-              filterIntensity={filterIntensity}
-              onSelectFilter={setFilter}
-              onChangeFilterIntensity={setFilterIntensity}
-              stickers={stickers}
-              onAddSticker={handleAddSticker}
-              onClearStickers={() => setStickrs([])}
-              watermark={watermark}
-              onToggleWatermark={setWatermark}
-            />
-          </div>
+          {/* Deliberately reserved for a future high-value feature. */}
+          <div className="h-[40%] min-h-0 flex-1" aria-label="Reserved workspace area" />
         </aside>
 
         <section className="col-span-12 lg:col-span-6 h-full min-h-0 flex flex-col items-center justify-between gap-1.5 overflow-hidden">
@@ -650,7 +489,7 @@ export default function App() {
           <SuggestedMemesPanel
             captions={captions}
             isLoading={isGeneratingCaptions}
-            onGenerate={(overrideStyle) => generateMagicCaptions(overrideStyle)}
+            onGenerate={(style) => generateMagicCaptions(style)}
             onApplyCaption={handleApplyCaption}
             selectedStyle={selectedStyle}
             onSelectStyle={(style) => {
