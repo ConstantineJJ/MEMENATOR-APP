@@ -27,6 +27,7 @@
     "strictBindCallApply": true,
     "strictFunctionTypes": true,
     "noImplicitThis": true,
+    "noImplicitAny": true,
     "noUncheckedSideEffectImports": true
   }
 }
