@@ -45,6 +45,11 @@ function idFromHistoryImageRef(ref: string): string | null {
 function writeHistoryArray(items: SavedMemeState[]): SavedMemeState[] {
   let candidate = items.slice(0, MAX_HISTORY_ITEMS);
 
+  if (candidate.length === 0) {
+    localStorage.setItem(HISTORY_KEY, '[]');
+    return [];
+  }
+
   while (candidate.length > 0) {
     try {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(candidate));
@@ -104,11 +109,8 @@ function prepareHistoryItemForStorage(item: SavedMemeState): SavedMemeState {
 }
 
 function migrateLegacyInlineHistory(items: SavedMemeState[]): SavedMemeState[] {
-  let migrationNeeded = false;
-
   for (const item of items) {
     if (!item?.id || !isInlineImage(item.imageSrc) || typeof indexedDB === 'undefined') continue;
-    migrationNeeded = true;
     const original = item.imageSrc;
     const key = historyImageKey(item.id);
     if (pendingImageWrites.has(key)) continue;
@@ -122,7 +124,7 @@ function migrateLegacyInlineHistory(items: SavedMemeState[]): SavedMemeState[] {
 
   // Keep legacy inline data in the in-memory result until the IndexedDB write has
   // actually completed. This makes migration fail-safe rather than destructive.
-  return migrationNeeded ? items : items;
+  return items;
 }
 
 // ================= HISTORY =================
