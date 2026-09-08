@@ -6,6 +6,12 @@ import {
   toggleFavoriteWebTemplate,
   getFavorites,
 } from '../utils/memeStorage';
+import {
+  arePerceptuallySimilar,
+  computePerceptualHashForUrl,
+  isPerceptualHash,
+  PERCEPTUAL_HASH_PREFIX,
+} from '../utils/perceptualHash';
 import { Dices, Search, Check, Star, X } from 'lucide-react';
 
 interface RandomMemesPanelProps {
@@ -13,6 +19,88 @@ interface RandomMemesPanelProps {
   selectedUrl: string;
   onShowToast: (msg: string) => void;
   historyRefreshTrigger?: number;
+}
+
+const DISPLAY_LIMIT = 6;
+const FETCH_CANDIDATE_LIMIT = 12;
+const HASH_CONCURRENCY = 4;
+const PERCEPTUAL_DISTANCE_THRESHOLD = 6;
+
+type HashedCandidate = {
+  item: WebMemeItem;
+  perceptualHash: string | null;
+};
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(items[index]);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
+  );
+  return results;
+}
+
+async function dedupeCandidatesByPixels(
+  items: WebMemeItem[],
+  previousHashes: string[]
+): Promise<WebMemeItem[]> {
+  const recentPerceptualHashes = previousHashes.filter(isPerceptualHash);
+
+  const hashed = await mapWithConcurrency<WebMemeItem, HashedCandidate>(
+    items,
+    HASH_CONCURRENCY,
+    async (item) => {
+      try {
+        const rawHash = await computePerceptualHashForUrl(item.thumbnailUrl || item.imageUrl);
+        return {
+          item,
+          perceptualHash: `${PERCEPTUAL_HASH_PREFIX}${rawHash}`,
+        };
+      } catch (err) {
+        // Provider metadata/URL dedupe still protects this item if pixel hashing is unavailable.
+        console.debug('Perceptual hash unavailable for meme:', item.id, err);
+        return { item, perceptualHash: null };
+      }
+    }
+  );
+
+  const selected: WebMemeItem[] = [];
+  const batchPerceptualHashes: string[] = [];
+
+  for (const candidate of hashed) {
+    if (candidate.perceptualHash) {
+      const alreadySeen = [...recentPerceptualHashes, ...batchPerceptualHashes].some((knownHash) =>
+        arePerceptuallySimilar(
+          candidate.perceptualHash!,
+          knownHash,
+          PERCEPTUAL_DISTANCE_THRESHOLD
+        )
+      );
+      if (alreadySeen) continue;
+
+      batchPerceptualHashes.push(candidate.perceptualHash);
+      selected.push({ ...candidate.item, hash: candidate.perceptualHash });
+    } else {
+      selected.push(candidate.item);
+    }
+
+    if (selected.length >= DISPLAY_LIMIT) break;
+  }
+
+  return selected;
 }
 
 export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
@@ -38,7 +126,7 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
     refreshFavs();
   }, [historyRefreshTrigger]);
 
-  // Fetch memes from multi-source aggregator
+  // Fetch a wider candidate pool, then pixel-dedupe it down to the visible six.
   const fetchRandomMemes = async (query = '', isManualDice = false) => {
     setIsLoading(true);
     if (isManualDice) setIsRollingDice(true);
@@ -47,7 +135,7 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
     try {
       const excludes = getShownWebMemeExcludes();
       const params = new URLSearchParams();
-      params.set('limit', '6');
+      params.set('limit', String(FETCH_CANDIDATE_LIMIT));
       if (query.trim()) params.set('query', query.trim());
 
       if (excludes.excludeIds.length > 0) {
@@ -64,10 +152,16 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
 
       const data = await res.json();
       if (data.items && Array.isArray(data.items)) {
-        setWebItems(data.items);
-        recordShownWebMemes(data.items);
+        const candidates = data.items as WebMemeItem[];
+        const deduped = await dedupeCandidatesByPixels(candidates, excludes.excludeHashes);
+        setWebItems(deduped);
+        recordShownWebMemes(deduped);
         if (isManualDice) {
-          onShowToast('🎲 Новая случайная подборка загружена!');
+          onShowToast(
+            deduped.length >= DISPLAY_LIMIT
+              ? '🎲 Новая случайная подборка загружена!'
+              : `🎲 Найдено ${deduped.length} новых уникальных мемов`
+          );
         }
       } else {
         setWebItems([]);
