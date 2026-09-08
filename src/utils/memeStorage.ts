@@ -6,6 +6,34 @@ const SHOWN_WEB_MEMES_KEY = 'memenator_shown_web_memes_v1';
 const MAX_HISTORY_ITEMS = 30;
 const MAX_EXCLUDE_ITEMS = 150;
 
+function isQuotaExceededError(err: unknown): boolean {
+  if (!(err instanceof DOMException)) return false;
+  return err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED';
+}
+
+/**
+ * localStorage is intentionally kept as the current persistence backend for now,
+ * but large uploaded photos can still pressure its small quota. When that happens,
+ * preserve the newest history first and progressively discard the oldest entries.
+ */
+function persistHistoryWithQuotaTrim(items: SavedMemeState[]): SavedMemeState[] {
+  let candidate = items.slice(0, MAX_HISTORY_ITEMS);
+
+  while (candidate.length > 0) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(candidate));
+      return candidate;
+    } catch (err) {
+      if (!isQuotaExceededError(err)) throw err;
+      candidate = candidate.slice(0, -1);
+    }
+  }
+
+  // A single huge data URL may itself exceed localStorage. Leave history unchanged
+  // rather than deleting existing data. IndexedDB migration remains the long-term fix.
+  throw new DOMException('Meme history exceeds localStorage quota.', 'QuotaExceededError');
+}
+
 // ================= HISTORY =================
 export function getMemeHistory(): SavedMemeState[] {
   try {
@@ -48,9 +76,7 @@ export function saveMemeToHistory(
       updated = [savedItem, ...history];
     }
 
-    // Limit to max items
-    const trimmed = updated.slice(0, MAX_HISTORY_ITEMS);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+    persistHistoryWithQuotaTrim(updated);
     return savedItem;
   } catch (err) {
     console.warn('Failed to save meme to history:', err);
@@ -94,12 +120,61 @@ export interface UniversalFavoriteItem {
   timestamp: number;
 }
 
+function normalizeFavorite(raw: any): UniversalFavoriteItem | null {
+  if (!raw || typeof raw !== 'object' || !raw.id) return null;
+
+  if (raw.type !== 'web' || !raw.webTemplate) {
+    return raw as UniversalFavoriteItem;
+  }
+
+  const legacy = raw.webTemplate as any;
+  const title = legacy.title || legacy.name || raw.title || 'Мем';
+  const imageUrl = legacy.imageUrl || legacy.url || raw.imageUrl || '';
+  if (!imageUrl) return null;
+
+  const normalizedTemplate: FavoriteWebTemplate = {
+    id: legacy.id || raw.id,
+    title,
+    imageUrl,
+    thumbnailUrl: legacy.thumbnailUrl || raw.thumbnailUrl || imageUrl,
+    source: legacy.source || raw.source || legacy.provider || 'web',
+    provider: legacy.provider || 'curated',
+    sourceId: legacy.sourceId,
+    hash: legacy.hash,
+    defaultTopText: legacy.defaultTopText,
+    defaultBottomText: legacy.defaultBottomText,
+    addedAt: legacy.addedAt || raw.timestamp || Date.now(),
+    name: legacy.name,
+    url: legacy.url,
+  };
+
+  return {
+    ...raw,
+    type: 'web',
+    title,
+    imageUrl,
+    thumbnailUrl: normalizedTemplate.thumbnailUrl,
+    webTemplate: normalizedTemplate,
+  } as UniversalFavoriteItem;
+}
+
 export function getFavorites(): UniversalFavoriteItem[] {
   try {
     const raw = localStorage.getItem(FAVORITES_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    const normalized = parsed
+      .map(normalizeFavorite)
+      .filter((item): item is UniversalFavoriteItem => Boolean(item));
+
+    // Opportunistic one-way migration of legacy name/url web favorite records.
+    if (JSON.stringify(normalized) !== JSON.stringify(parsed)) {
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify(normalized));
+    }
+
+    return normalized;
   } catch (err) {
     console.warn('Failed to load favorites:', err);
     return [];
@@ -175,11 +250,13 @@ export function toggleFavoriteWebTemplate(item: WebMemeItem): boolean {
         source: item.provider.toUpperCase(),
         webTemplate: {
           id: item.id,
-          name: item.title,
-          url: item.imageUrl,
+          title: item.title,
+          imageUrl: item.imageUrl,
           thumbnailUrl: item.thumbnailUrl || item.imageUrl,
           source: item.provider,
           provider: item.provider,
+          sourceId: item.sourceId,
+          hash: item.hash,
           defaultTopText: item.defaultTopText,
           defaultBottomText: item.defaultBottomText,
           addedAt: Date.now(),
@@ -234,8 +311,11 @@ export function getShownWebMemeExcludes(): { excludeIds: string[]; excludeHashes
 export function recordShownWebMemes(items: WebMemeItem[]): void {
   try {
     const current = getShownWebMemeExcludes();
+    const itemHashes = items
+      .map((i) => i.hash)
+      .filter((hash): hash is string => typeof hash === 'string' && hash.length > 0);
     const newIds = new Set([...current.excludeIds, ...items.map((i) => i.id)]);
-    const newHashes = new Set([...current.excludeHashes, ...items.map((i) => i.hash)]);
+    const newHashes = new Set([...current.excludeHashes, ...itemHashes]);
 
     const stored: ShownWebMemesStore = {
       ids: Array.from(newIds).slice(-MAX_EXCLUDE_ITEMS),
