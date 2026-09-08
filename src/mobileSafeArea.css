@@ -1,0 +1,11 @@
+/* Final safe-area corrections kept separate from the layout profile rules. */
+html[data-layout-profile]:not([data-layout-profile='desktop']) #root > div:first-child > header {
+  height: calc(3.5rem + var(--memenator-safe-top)) !important;
+  min-height: calc(3.5rem + var(--memenator-safe-top)) !important;
+  padding-top: var(--memenator-safe-top) !important;
+}
+
+html[data-layout-profile^='phone'] #root > div:first-child > main,
+html[data-layout-profile^='tablet'] #root > div:first-child > main {
+  scroll-margin-top: calc(3.5rem + var(--memenator-safe-top));
+}
