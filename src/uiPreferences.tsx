@@ -16,14 +16,12 @@ interface UiPreferencesValue {
 
 const LANGUAGE_KEY = 'memenator:language';
 const THEME_KEY = 'memenator:theme';
-
 const UiPreferencesContext = createContext<UiPreferencesValue | null>(null);
 
 /**
- * MEMENATOR was originally authored in Russian, so legacy components still
- * contain Russian UI literals. This compatibility dictionary translates those
- * literals without touching user-authored meme text or canvas content.
- * New product-facing code should prefer useUiPreferences().tr().
+ * Legacy UI was authored mostly in Russian. This compatibility map keeps those
+ * components bilingual while newer stateful/AI paths consume the locale
+ * directly. User-authored meme text and canvas content are never translated.
  */
 const EXACT_TRANSLATIONS: Record<string, string> = {
   // App shell / common actions
@@ -305,7 +303,6 @@ const EXACT_TRANSLATIONS: Record<string, string> = {
   'Введите описание или выберите готовую фразу': 'Enter a prompt or choose a preset',
   'Шаблон создан (локальный fallback)': 'Template created (local fallback)',
   'Мем-картинка успешно сгенерирована через Gemini 3.1!': 'Meme image generated with Gemini 3.1!',
-  'Готово к использованию': 'Ready to use',
 
   // Image-generation preset labels
   'Кот в шоке': 'Shocked cat',
@@ -461,7 +458,7 @@ const ATTRIBUTE_TRANSLATIONS: Record<string, string> = {
   'Опишите что добавить или изменить на текущей картинке...': 'Describe what to add or change in the current image...',
 };
 
-/** System-generated form values used by the image-generator presets. */
+/** System-created prompt values used by the image generator. */
 const SYSTEM_FORM_TRANSLATIONS: Record<string, string> = {
   'Понедельник': 'Monday',
   'Сессия': 'Exams',
@@ -469,7 +466,6 @@ const SYSTEM_FORM_TRANSLATIONS: Record<string, string> = {
   'Зарплата': 'Payday',
   'Отношения': 'Relationships',
   'Кот': 'Cat',
-
   'Пушистый кот смотрит в камеру с широко раскрытыми глазами от шока': 'A fluffy cat stares into the camera with huge shocked eyes',
   'Спокойная капибара сидит в теплой воде с апельсином на голове': 'A calm capybara sits in warm water with an orange on its head',
   'Хомяк в деловом костюме с драматичным освещением в стиле нуар': 'A hamster in a business suit under dramatic noir lighting',
@@ -491,7 +487,6 @@ const SYSTEM_FORM_TRANSLATIONS: Record<string, string> = {
   'Пес в шляпе сидит за чашкой кофе, пока вокруг легкий хаос': 'A dog in a hat calmly drinks coffee while mild chaos unfolds around it',
   'Мультяшный персонаж гордо стоит на детском велосипеде в смокинге': 'A cartoon character proudly poses on a tiny bicycle while wearing a tuxedo',
   'Инженер смотрит на сломанную шестеренку со схемой в руках': 'An engineer studies a broken gear while holding the original blueprint',
-
   'Кот в солнечных очках сидит за рулем детской машинки с важным видом': 'A cat in sunglasses drives a toy car with absurd confidence',
   'Панда пытается заниматься йогой, но заснула в нелепой позе': 'A panda tries to do yoga but falls asleep in an awkward pose',
   'Офисный клерк с тремя чашками кофе пытается поймать улетающий лист бумаги': 'An office worker with three coffees tries to catch a sheet of paper flying away',
@@ -512,24 +507,19 @@ function translateStyleName(value: string): string {
 
 const translateDynamicText = (value: string): string => {
   const trimmed = value.trim();
-  const exact = EXACT_TRANSLATIONS[trimmed];
+  const exact = EXACT_TRANSLATIONS[trimmed] || SYSTEM_FORM_TRANSLATIONS[trimmed];
   if (exact) return value.replace(trimmed, exact);
 
   const variant = trimmed.match(/^ВАРИАНТ #(\d+)$/i);
   if (variant) return value.replace(trimmed, `VARIANT #${variant[1]}`);
-
   const suggestions = trimmed.match(/^(\d+) предложени(?:е|я|й)$/i);
   if (suggestions) return value.replace(trimmed, `${suggestions[1]} suggestions`);
-
   const curated = trimmed.match(/^(\d+) отобранных варианта? от ИИ:$/i);
   if (curated) return value.replace(trimmed, `${curated[1]} curated AI ideas:`);
-
   const gallery = trimmed.match(/^Галерея \((\d+)\)$/i);
   if (gallery) return value.replace(trimmed, `Gallery (${gallery[1]})`);
-
   const savedGenerations = trimmed.match(/^Сохраненные генерации \((\d+)\):$/i);
   if (savedGenerations) return value.replace(trimmed, `Saved generations (${savedGenerations[1]}):`);
-
   const generationHistory = trimmed.match(/^История генераций \((\d+)\):$/i);
   if (generationHistory) return value.replace(trimmed, `Generation history (${generationHistory[1]}):`);
 
@@ -557,7 +547,6 @@ const translateDynamicText = (value: string): string => {
   if (imageStyle) return value.replace(trimmed, `In “${translateStyleName(imageStyle[1])}” style:`);
   const ideasStyle = trimmed.match(/^Идеи в стиле: (.+)$/i);
   if (ideasStyle) return value.replace(trimmed, `Ideas in style: ${translateStyleName(ideasStyle[1])}`);
-
   const strokeColor = trimmed.match(/^Цвет обводки: (.+)$/i);
   if (strokeColor) return value.replace(trimmed, `Stroke color: ${translateStyleName(strokeColor[1])}`);
   const shadowColor = trimmed.match(/^Тень: (Черная|Огонь|Золото|Неон|Пурпур|Изумруд)$/i);
@@ -585,7 +574,6 @@ const resolveTextSource = (node: Text) => {
     originalText.set(node, current);
     return current;
   }
-
   return saved;
 };
 
@@ -604,7 +592,6 @@ const translateElementAttributes = (element: Element, language: UiLanguage) => {
   for (const attr of attrs) {
     const current = element.getAttribute(attr);
     if (!current) continue;
-
     if (!originals) {
       originals = new Map<string, string>();
       originalAttributes.set(element, originals);
@@ -634,17 +621,14 @@ function translateSystemGeneratedFormValue(value: string): string | null {
   if (captionPrompt) {
     return `A comedic meme scene expressing: "${captionPrompt[1]}". Style: ${translateStyleName(captionPrompt[2])}, expressive facial acting and clear composition`;
   }
-
   const canvasPrompt = value.match(/^Выразительный мем-визуал для текста: "([\s\S]+)"\. Ироничная кинематографичная сцена с персонажами$/i);
   if (canvasPrompt) {
     return `Expressive meme visual for the caption: "${canvasPrompt[1]}". Ironic cinematic scene with characters`;
   }
-
   const modalCanvasPrompt = value.match(/^Мем-визуал для текста: "([\s\S]+)"\. Ироничная кинематографичная сцена$/i);
   if (modalCanvasPrompt) {
     return `Meme visual for the caption: "${modalCanvasPrompt[1]}". Ironic cinematic scene`;
   }
-
   return null;
 }
 
@@ -686,7 +670,6 @@ const translateTree = (root: ParentNode, language: UiLanguage) => {
     translateTextNode(node as Text, language);
     node = walker.nextNode();
   }
-
   if (root instanceof Element) translateElementAttributes(root, language);
   root.querySelectorAll?.('*').forEach((element) => translateElementAttributes(element, language));
 };
@@ -724,18 +707,13 @@ export const UiPreferencesProvider: React.FC<React.PropsWithChildren> = ({ child
           translateTextNode(mutation.target as Text, language);
           continue;
         }
-
         if (mutation.type === 'attributes' && mutation.target instanceof Element) {
           translateElementAttributes(mutation.target, language);
           continue;
         }
-
         mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            translateTextNode(node as Text, language);
-          } else if (node instanceof Element) {
-            translateTree(node, language);
-          }
+          if (node.nodeType === Node.TEXT_NODE) translateTextNode(node as Text, language);
+          else if (node instanceof Element) translateTree(node, language);
         });
       }
       scheduleFormTranslation();
