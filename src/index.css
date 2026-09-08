@@ -16,6 +16,16 @@ html[data-theme='light'] #root {
 }
 
 /*
+ * The old Fill viewport mode forced the canvas into the viewport aspect ratio,
+ * while export kept the original image aspect ratio. That made the preview lie
+ * about the final result. Keep the correct proportional Fit mode until a future
+ * export-aware cover/crop mode is introduced.
+ */
+button[title^='Fill:'] {
+  display: none !important;
+}
+
+/*
  * The original studio was authored with Tailwind neutral dark utilities.
  * Theme overrides keep the component markup stable while providing a coherent
  * light palette. Accent colors (rose/emerald/amber/cyan) deliberately stay the
