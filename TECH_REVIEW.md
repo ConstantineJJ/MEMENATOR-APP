@@ -30,9 +30,9 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [ ] Deduplicate shared AI style configuration.
 - [ ] Tighten TypeScript settings incrementally.
 - [x] Add permanent read-only typecheck/build CI safety net.
-- [ ] Add automated tests to the CI safety net.
+- [x] Add initial automated tests to the CI safety net (aggregator normalization/signature coverage); expand coverage as modules are refactored.
 - [x] Read `PORT` from the environment.
 - [ ] Replace title/filename pseudo-signatures with a real perceptual image hash for stronger cross-provider deduplication.
 
 ## Verification rule
-For each non-trivial code pass: run TypeScript typecheck and production build before marking the item complete. Keep verification workflows read-only; do not use self-modifying GitHub Actions workflows.
+For each non-trivial code pass: run TypeScript typecheck, automated tests, and production build before marking the item complete. Keep verification workflows read-only; do not use self-modifying GitHub Actions workflows.
