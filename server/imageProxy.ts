@@ -115,7 +115,8 @@ export async function proxyExternalImage(req: ExpressRequest, res: ExpressRespon
       return res.status(response.status).json({ error: 'Failed to fetch external image.' });
     }
 
-    const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const [rawContentType = ''] = (response.headers.get('content-type') || '').split(';');
+    const contentType = rawContentType.trim().toLowerCase();
     if (!contentType.startsWith('image/')) {
       return res.status(415).json({ error: 'Requested resource is not an image.' });
     }
