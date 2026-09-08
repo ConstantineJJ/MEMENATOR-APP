@@ -9,6 +9,7 @@ const STOP_WORDS = new Set([
 export interface CaptionSelectionOptions {
   limit?: number;
   recentCaptions?: CaptionSuggestion[];
+  styleId?: string;
 }
 
 function tokenize(value: string): Set<string> {
@@ -60,11 +61,28 @@ function intrinsicQuality(caption: CaptionSuggestion): number {
   return score;
 }
 
+function styleClichePenalty(caption: CaptionSuggestion, styleId?: string): number {
+  if (styleId !== 'millennials') return 0;
+
+  const text = captionText(caption).toLowerCase();
+  const overusedFamilies = [
+    /подорожник/,
+    /колорад|жук/,
+    /кассет.*карандаш|карандаш.*кассет/,
+    /колен|коленк|хруст.*сустав/,
+    /домой.*не выпуст|мама.*не выпуст|сидеть дома/,
+  ];
+
+  return overusedFamilies.reduce((penalty, pattern) => (
+    pattern.test(text) ? penalty + 2.2 : penalty
+  ), 0);
+}
+
 /**
  * Picks a small set of the strongest caption candidates while penalizing
  * near-duplicates within the current batch and ideas that are too close to
- * recently shown captions. The model may still over-generate candidates, but
- * the UI only receives a compact, diverse shortlist.
+ * recently shown captions. A light style-specific fatigue penalty can also
+ * push chronically overused references down without banning them completely.
  */
 export function selectBestCaptionSuggestions(
   captions: CaptionSuggestion[],
@@ -92,7 +110,10 @@ export function selectBestCaptionSuggestions(
 
       const diversityScore = (1 - batchSimilarity) * 3.2 + (1 - recentSimilarity) * 2.4;
       const mechanicBonus = mechanicDuplicate ? -0.9 : 0.9;
-      const score = intrinsicQuality(candidate) + diversityScore + mechanicBonus;
+      const score = intrinsicQuality(candidate)
+        + diversityScore
+        + mechanicBonus
+        - styleClichePenalty(candidate, options.styleId);
 
       if (score > bestScore) {
         bestScore = score;
