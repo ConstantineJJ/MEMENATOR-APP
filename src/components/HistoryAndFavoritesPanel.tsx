@@ -11,6 +11,7 @@ import {
   getFavorites,
   toggleFavoriteHistoryItem,
   removeFavoriteById,
+  resolveSavedMemeState,
   UniversalFavoriteItem,
 } from '../utils/memeStorage';
 import { drawMemeOnCanvas } from '../utils/canvasHelper';
@@ -19,7 +20,6 @@ import {
   Star,
   Trash2,
   Download,
-  RotateCcw,
 } from 'lucide-react';
 
 interface HistoryAndFavoritesPanelProps {
@@ -61,6 +61,17 @@ export const HistoryAndFavoritesPanel: React.FC<HistoryAndFavoritesPanelProps> =
     return `${days} д`;
   };
 
+  const restoreSavedMeme = useCallback(async (item: SavedMemeState) => {
+    try {
+      const resolved = await resolveSavedMemeState(item);
+      onRestoreMeme(resolved);
+      onShowToast(`Мем «${item.title}» восстановлен!`);
+    } catch (err) {
+      console.warn('Failed to restore saved meme:', err);
+      onShowToast('Не удалось восстановить исходное изображение мема');
+    }
+  }, [onRestoreMeme, onShowToast]);
+
   const handleDeleteHistory = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     deleteMemeFromHistory(id);
@@ -91,10 +102,33 @@ export const HistoryAndFavoritesPanel: React.FC<HistoryAndFavoritesPanelProps> =
     onShowToast('Удалено из избранного');
   };
 
+  const openFavorite = useCallback(async (fav: UniversalFavoriteItem) => {
+    if (fav.type === 'custom' && fav.savedState) {
+      await restoreSavedMeme(fav.savedState);
+      return;
+    }
+
+    if (fav.webTemplate) {
+      onSelectWebTemplate({
+        id: fav.webTemplate.id,
+        title: fav.webTemplate.title,
+        imageUrl: fav.webTemplate.imageUrl,
+        thumbnailUrl: fav.webTemplate.thumbnailUrl,
+        provider: fav.webTemplate.provider as MemeProvider,
+        sourceId: fav.webTemplate.sourceId,
+        hash: fav.webTemplate.hash,
+        defaultTopText: fav.webTemplate.defaultTopText,
+        defaultBottomText: fav.webTemplate.defaultBottomText,
+      });
+      onShowToast(`Мем «${fav.title}» загружен!`);
+    }
+  }, [onSelectWebTemplate, onShowToast, restoreSavedMeme]);
+
   const handleDownloadSavedMeme = async (e: React.MouseEvent, meme: SavedMemeState) => {
     e.stopPropagation();
     try {
       onShowToast('Подготовка к скачиванию...');
+      const resolved = await resolveSavedMemeState(meme);
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
@@ -103,31 +137,31 @@ export const HistoryAndFavoritesPanel: React.FC<HistoryAndFavoritesPanelProps> =
           drawMemeOnCanvas(
             offCanvas,
             img,
-            meme.textBoxes,
-            meme.stickers,
-            meme.filter,
-            meme.watermark,
-            meme.filterIntensity ?? 100
+            resolved.textBoxes,
+            resolved.stickers,
+            resolved.filter,
+            resolved.watermark,
+            resolved.filterIntensity ?? 100
           );
           const link = document.createElement('a');
-          link.download = `${meme.title || 'meme'}-${Date.now()}.png`;
+          link.download = `${resolved.title || 'meme'}-${Date.now()}.png`;
           link.href = offCanvas.toDataURL('image/png');
           link.click();
           onShowToast('Мем скачан!');
         } catch (_err) {
           const fallback = document.createElement('a');
-          fallback.download = `${meme.title || 'meme'}.jpg`;
-          fallback.href = meme.thumbnailUrl || meme.imageSrc;
+          fallback.download = `${resolved.title || 'meme'}.jpg`;
+          fallback.href = resolved.thumbnailUrl || resolved.imageSrc;
           fallback.click();
         }
       };
       img.onerror = () => {
         const fallback = document.createElement('a');
-        fallback.download = `${meme.title || 'meme'}.jpg`;
-        fallback.href = meme.thumbnailUrl || meme.imageSrc;
+        fallback.download = `${resolved.title || 'meme'}.jpg`;
+        fallback.href = resolved.thumbnailUrl || resolved.imageSrc;
         fallback.click();
       };
-      img.src = meme.imageSrc;
+      img.src = resolved.imageSrc;
     } catch (_err) {
       onShowToast('Ошибка при скачивании');
     }
@@ -208,14 +242,10 @@ export const HistoryAndFavoritesPanel: React.FC<HistoryAndFavoritesPanelProps> =
                   return (
                     <div
                       key={item.id}
-                      onClick={() => {
-                        onRestoreMeme(item);
-                        onShowToast(`Мем «${item.title}» восстановлен!`);
-                      }}
+                      onClick={() => void restoreSavedMeme(item)}
                       className="group relative flex flex-col justify-between rounded-xl overflow-hidden border border-neutral-800/90 hover:border-emerald-500/70 bg-neutral-950/90 hover:bg-neutral-900 p-1 transition-all cursor-pointer shadow-sm"
                       title="Нажмите, чтобы восстановить мем"
                     >
-                      {/* Thumbnail */}
                       <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-neutral-900 mb-0.5 border border-neutral-800/80 shrink-0">
                         <img
                           src={item.thumbnailUrl || item.imageSrc}
@@ -234,18 +264,15 @@ export const HistoryAndFavoritesPanel: React.FC<HistoryAndFavoritesPanelProps> =
                         )}
                       </div>
 
-                      {/* Title */}
                       <h4 className="text-[9px] font-bold text-neutral-200 group-hover:text-emerald-300 transition line-clamp-1 mb-0.5 leading-tight">
                         {item.title}
                       </h4>
 
-                      {/* Actions */}
                       <div className="flex items-center gap-1 pt-0.5 border-t border-neutral-800/60 shrink-0">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            onRestoreMeme(item);
-                            onShowToast(`Мем «${item.title}» восстановлен!`);
+                            void restoreSavedMeme(item);
                           }}
                           className="flex-1 py-0.5 text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-white transition cursor-pointer text-center"
                           title="Восстановить мем"
@@ -266,7 +293,7 @@ export const HistoryAndFavoritesPanel: React.FC<HistoryAndFavoritesPanelProps> =
                         </button>
 
                         <button
-                          onClick={(e) => handleDownloadSavedMeme(e, item)}
+                          onClick={(e) => void handleDownloadSavedMeme(e, item)}
                           className="p-0.5 rounded text-neutral-500 hover:text-emerald-400 hover:bg-neutral-800 transition cursor-pointer"
                           title="Скачать"
                         >
@@ -302,82 +329,51 @@ export const HistoryAndFavoritesPanel: React.FC<HistoryAndFavoritesPanelProps> =
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-1.5 h-full items-stretch">
-                {favorites.slice(0, 3).map((fav) => {
-                  return (
-                    <div
-                      key={fav.id}
-                      onClick={() => {
-                        if (fav.type === 'custom' && fav.savedState) {
-                          onRestoreMeme(fav.savedState);
-                          onShowToast(`Мем «${fav.title}» восстановлен!`);
-                        } else if (fav.webTemplate) {
-                          onSelectWebTemplate({
-                            id: fav.webTemplate.id,
-                            title: fav.webTemplate.title,
-                            imageUrl: fav.webTemplate.imageUrl,
-                            thumbnailUrl: fav.webTemplate.thumbnailUrl,
-                            provider: fav.webTemplate.provider as MemeProvider,
-                          });
-                          onShowToast(`Мем «${fav.title}» загружен!`);
-                        }
-                      }}
-                      className="group relative flex flex-col justify-between rounded-xl overflow-hidden border border-neutral-800/90 hover:border-amber-400/70 bg-neutral-950/90 hover:bg-neutral-900 p-1 transition-all cursor-pointer shadow-sm"
-                      title="Открыть мем"
-                    >
-                      {/* Thumbnail */}
-                      <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-neutral-900 mb-0.5 border border-neutral-800/80 shrink-0">
-                        <img
-                          src={fav.thumbnailUrl || fav.imageUrl}
-                          alt={fav.title}
-                          referrerPolicy="no-referrer"
-                          loading="lazy"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute bottom-0.5 left-1 bg-black/85 text-[7px] text-amber-300 px-1 py-0.2 rounded font-mono uppercase">
-                          {fav.type === 'custom' ? 'МОЙ' : 'ШАБЛОН'}
-                        </div>
-                      </div>
-
-                      {/* Title */}
-                      <h4 className="text-[9px] font-bold text-neutral-100 group-hover:text-amber-300 transition line-clamp-1 mb-0.5 leading-tight">
-                        {fav.title}
-                      </h4>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 pt-0.5 border-t border-neutral-800/60 shrink-0">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (fav.type === 'custom' && fav.savedState) {
-                              onRestoreMeme(fav.savedState);
-                              onShowToast(`Мем «${fav.title}» восстановлен!`);
-                            } else if (fav.webTemplate) {
-                              onSelectWebTemplate({
-                                id: fav.webTemplate.id,
-                                title: fav.webTemplate.title,
-                                imageUrl: fav.webTemplate.imageUrl,
-                                thumbnailUrl: fav.webTemplate.thumbnailUrl,
-                                provider: fav.webTemplate.provider as MemeProvider,
-                              });
-                              onShowToast(`Мем «${fav.title}» загружен!`);
-                            }
-                          }}
-                          className="flex-1 text-[8px] font-bold py-0.5 rounded bg-amber-400/15 text-amber-300 hover:bg-amber-400 hover:text-neutral-950 transition cursor-pointer"
-                        >
-                          Открыть
-                        </button>
-
-                        <button
-                          onClick={(e) => handleRemoveFav(e, fav.id)}
-                          className="p-0.5 rounded text-amber-400 hover:text-rose-400 hover:bg-neutral-800 transition cursor-pointer"
-                          title="Удалить из избранного"
-                        >
-                          <Star className="w-2.5 h-2.5 fill-current" />
-                        </button>
+                {favorites.slice(0, 3).map((fav) => (
+                  <div
+                    key={fav.id}
+                    onClick={() => void openFavorite(fav)}
+                    className="group relative flex flex-col justify-between rounded-xl overflow-hidden border border-neutral-800/90 hover:border-amber-400/70 bg-neutral-950/90 hover:bg-neutral-900 p-1 transition-all cursor-pointer shadow-sm"
+                    title="Открыть мем"
+                  >
+                    <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-neutral-900 mb-0.5 border border-neutral-800/80 shrink-0">
+                      <img
+                        src={fav.thumbnailUrl || fav.imageUrl}
+                        alt={fav.title}
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute bottom-0.5 left-1 bg-black/85 text-[7px] text-amber-300 px-1 py-0.2 rounded font-mono uppercase">
+                        {fav.type === 'custom' ? 'МОЙ' : 'ШАБЛОН'}
                       </div>
                     </div>
-                  );
-                })}
+
+                    <h4 className="text-[9px] font-bold text-neutral-100 group-hover:text-amber-300 transition line-clamp-1 mb-0.5 leading-tight">
+                      {fav.title}
+                    </h4>
+
+                    <div className="flex items-center gap-1 pt-0.5 border-t border-neutral-800/60 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void openFavorite(fav);
+                        }}
+                        className="flex-1 text-[8px] font-bold py-0.5 rounded bg-amber-400/15 text-amber-300 hover:bg-amber-400 hover:text-neutral-950 transition cursor-pointer"
+                      >
+                        Открыть
+                      </button>
+
+                      <button
+                        onClick={(e) => handleRemoveFav(e, fav.id)}
+                        className="p-0.5 rounded text-amber-400 hover:text-rose-400 hover:bg-neutral-800 transition cursor-pointer"
+                        title="Удалить из избранного"
+                      >
+                        <Star className="w-2.5 h-2.5 fill-current" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </>
