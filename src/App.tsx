@@ -38,7 +38,7 @@ import {
   WebMemeItem,
 } from './types';
 
-const INITIAL_TEXT_BOXES: TextBox[] = [
+const INITIAL_TEXT_BOXES: [TextBox, TextBox] = [
   {
     id: 'top-1',
     text: TRENDING_TEMPLATES[0].defaultTopText || 'КОГДА СКАЗАЛИ РАСШИРИТЬ БИЗНЕС',
@@ -244,9 +244,11 @@ export default function App() {
     setOriginalImageSrc(item.imageUrl);
     clearCaptions();
 
-    const nextTextBoxes = [
-      { ...textBoxes[0], text: item.defaultTopText || '' },
-      { ...textBoxes[1], text: item.defaultBottomText || '' },
+    const topBox = textBoxes[0] ?? INITIAL_TEXT_BOXES[0];
+    const bottomBox = textBoxes[1] ?? INITIAL_TEXT_BOXES[1];
+    const nextTextBoxes: TextBox[] = [
+      { ...topBox, text: item.defaultTopText || '' },
+      { ...bottomBox, text: item.defaultBottomText || '' },
       ...textBoxes.slice(2),
     ];
     setTextBoxes(nextTextBoxes);
