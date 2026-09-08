@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
@@ -40,7 +40,7 @@ function parseAllowedImageUrl(rawUrl: string, baseUrl?: URL): URL {
   return parsed;
 }
 
-async function fetchWithValidatedRedirects(initialUrl: URL): Promise<Response> {
+async function fetchWithValidatedRedirects(initialUrl: URL): Promise<globalThis.Response> {
   let currentUrl = initialUrl;
 
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
@@ -65,7 +65,7 @@ async function fetchWithValidatedRedirects(initialUrl: URL): Promise<Response> {
       continue;
     }
 
-    return response as unknown as Response;
+    return response;
   }
 
   throw new Error('Unable to resolve image URL.');
@@ -101,7 +101,7 @@ async function readBodyWithLimit(response: globalThis.Response): Promise<Buffer>
   return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
 
-export async function proxyExternalImage(req: Request, res: Response) {
+export async function proxyExternalImage(req: ExpressRequest, res: ExpressResponse) {
   try {
     const rawUrl = typeof req.query.url === 'string' ? req.query.url.trim() : '';
     if (!rawUrl) {
@@ -109,7 +109,7 @@ export async function proxyExternalImage(req: Request, res: Response) {
     }
 
     const initialUrl = parseAllowedImageUrl(rawUrl);
-    const response = await fetchWithValidatedRedirects(initialUrl) as unknown as globalThis.Response;
+    const response = await fetchWithValidatedRedirects(initialUrl);
 
     if (!response.ok) {
       return res.status(response.status).json({ error: 'Failed to fetch external image.' });
