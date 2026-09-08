@@ -2,6 +2,8 @@ import { Type } from '@google/genai';
 import type { Express } from 'express';
 import { getGeminiClient } from '../gemini';
 
+type AnalysisLanguage = 'ru' | 'en';
+
 interface FallbackFocalSubject {
   name: string;
   box: {
@@ -15,17 +17,28 @@ interface FallbackFocalSubject {
   description: string;
 }
 
-function getFallbackCompositionAnalysis(width = 600, height = 600) {
+function getFallbackCompositionAnalysis(
+  width = 600,
+  height = 600,
+  language: AnalysisLanguage = 'ru'
+) {
   const isLandscape = width > height;
   const focalSubjects: FallbackFocalSubject[] = [];
+  const en = language === 'en';
 
   return {
     overallScore: 72,
-    balanceAssessment: isLandscape
-      ? 'Эвристика: широкий кадр без подтвержденного распознавания объектов.'
-      : 'Эвристика: вертикальный или близкий к квадратному кадр без подтвержденного распознавания объектов.',
+    balanceAssessment: en
+      ? isLandscape
+        ? 'Heuristic estimate: wide frame without confirmed object recognition.'
+        : 'Heuristic estimate: portrait or near-square frame without confirmed object recognition.'
+      : isLandscape
+        ? 'Эвристика: широкий кадр без подтвержденного распознавания объектов.'
+        : 'Эвристика: вертикальный или близкий к квадратному кадр без подтвержденного распознавания объектов.',
     ruleOfThirdsAlignment: 'centered',
-    detectedStyle: 'Эвристическая оценка — Gemini недоступен',
+    detectedStyle: en
+      ? 'Heuristic estimate — Gemini unavailable'
+      : 'Эвристическая оценка — Gemini недоступен',
     metrics: {
       visualBalance: 70,
       negativeSpace: 65,
@@ -42,7 +55,9 @@ function getFallbackCompositionAnalysis(width = 600, height = 600) {
         bgLuminance: 'mixed',
         recommendedTextColor: '#FFFFFF',
         recommendedStrokeColor: '#000000',
-        reason: 'Эвристическая верхняя зона. Проверьте вручную, что она не перекрывает лицо или важный объект.',
+        reason: en
+          ? 'Heuristic top zone. Check manually that it does not cover a face or important subject.'
+          : 'Эвристическая верхняя зона. Проверьте вручную, что она не перекрывает лицо или важный объект.',
       },
       {
         area: 'bottom',
@@ -52,21 +67,33 @@ function getFallbackCompositionAnalysis(width = 600, height = 600) {
         bgLuminance: 'mixed',
         recommendedTextColor: '#FFFFFF',
         recommendedStrokeColor: '#000000',
-        reason: 'Эвристическая нижняя зона. Проверьте вручную, что она не перекрывает важные детали.',
+        reason: en
+          ? 'Heuristic bottom zone. Check manually that it does not cover important details.'
+          : 'Эвристическая нижняя зона. Проверьте вручную, что она не перекрывает важные детали.',
       },
     ],
-    recommendations: [
-      'Gemini недоступен: координаты объектов не распознавались.',
-      'Проверьте вручную, что верхний и нижний текст не перекрывают лица и предметы.',
-      'Для сложного фона используйте контрастную обводку текста.',
-    ],
+    recommendations: en
+      ? [
+          'Gemini is unavailable: object coordinates were not recognized.',
+          'Check manually that the top and bottom captions do not cover faces or important props.',
+          'Use a high-contrast text stroke on complex backgrounds.',
+        ]
+      : [
+          'Gemini недоступен: координаты объектов не распознавались.',
+          'Проверьте вручную, что верхний и нижний текст не перекрывают лица и предметы.',
+          'Для сложного фона используйте контрастную обводку текста.',
+        ],
     suggestedTextPlacements: {
       topTextY: 11,
       bottomTextY: 89,
       align: 'center',
       suggestedFontSize: 36,
-      fontRecommendation: 'Impact или Montserrat Black с контрастной обводкой',
-      reason: 'Безопасная эвристическая стартовая позиция без заявлений о распознанных объектах.',
+      fontRecommendation: en
+        ? 'Impact or Montserrat Black with a high-contrast stroke'
+        : 'Impact или Montserrat Black с контрастной обводкой',
+      reason: en
+        ? 'Safe heuristic starting positions without claiming that specific objects were detected.'
+        : 'Безопасная эвристическая стартовая позиция без заявлений о распознанных объектах.',
     },
     isFallback: true,
   };
@@ -166,18 +193,23 @@ const compositionSchema = {
   ],
 };
 
-export function registerCompositionRoute(app: Express) {
-  app.post('/api/analyze-composition', async (req, res) => {
-    const { imageBase64, mimeType = 'image/jpeg', width = 600, height = 600 } = req.body || {};
+function buildCompositionPrompt(language: AnalysisLanguage): string {
+  if (language === 'en') {
+    return `You are an art director specializing in visual composition and internet memes. Analyze only what is genuinely visible in the image.
 
-    if (typeof imageBase64 !== 'string' || !imageBase64) {
-      return res.status(400).json({ error: 'imageBase64 is required.' });
-    }
+Determine:
+1. focalSubjects: key faces/objects, their role, gaze direction, and x/y/width/height coordinates as percentages from 0–100.
+2. safeZones: real top/bottom areas where captions will not cover faces or important comedic details.
+3. overallScore 1–100, balanceAssessment, and metrics: visualBalance, negativeSpace, contrastReadability, comedicFocus.
+4. ruleOfThirdsAlignment: strong, moderate, or centered.
+5. 3–5 practical recommendations.
+6. suggestedTextPlacements: topTextY, bottomTextY, align, suggestedFontSize, fontRecommendation, reason.
+7. detectedStyle.
 
-    try {
-      const cleanBase64 = imageBase64.replace(/^data:[a-zA-Z0-9/+-]+;base64,/, '');
-      const ai = getGeminiClient();
-      const prompt = `Ты — арт-директор по визуальной композиции и мемам. Проанализируй только то, что реально видно на изображении.
+Do not invent a face, gaze, object, or clean text zone if it cannot be seen confidently. Write ALL descriptive string fields in natural English only.`;
+  }
+
+  return `Ты — арт-директор по визуальной композиции и мемам. Проанализируй только то, что реально видно на изображении.
 
 Определи:
 1. focalSubjects: ключевые лица/объекты, их роль, направление взгляда и координаты x/y/width/height в процентах 0–100.
@@ -189,6 +221,27 @@ export function registerCompositionRoute(app: Express) {
 7. detectedStyle.
 
 Не выдумывай лицо, взгляд, объект или чистую зону, если их нельзя уверенно увидеть. Все текстовые поля пиши по-русски.`;
+}
+
+export function registerCompositionRoute(app: Express) {
+  app.post('/api/analyze-composition', async (req, res) => {
+    const {
+      imageBase64,
+      mimeType = 'image/jpeg',
+      width = 600,
+      height = 600,
+      language = 'ru',
+    } = req.body || {};
+    const safeLanguage: AnalysisLanguage = language === 'en' ? 'en' : 'ru';
+
+    if (typeof imageBase64 !== 'string' || !imageBase64) {
+      return res.status(400).json({ error: 'imageBase64 is required.' });
+    }
+
+    try {
+      const cleanBase64 = imageBase64.replace(/^data:[a-zA-Z0-9/+-]+;base64,/, '');
+      const ai = getGeminiClient();
+      const prompt = buildCompositionPrompt(safeLanguage);
 
       const modelsToTry = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
       for (const modelName of modelsToTry) {
@@ -228,7 +281,11 @@ export function registerCompositionRoute(app: Express) {
     }
 
     return res.json({
-      analysis: getFallbackCompositionAnalysis(Number(width) || 600, Number(height) || 600),
+      analysis: getFallbackCompositionAnalysis(
+        Number(width) || 600,
+        Number(height) || 600,
+        safeLanguage
+      ),
       isFallback: true,
     });
   });
