@@ -1,0 +1,225 @@
+name: Review Fix Client Core
+
+on:
+  push:
+    branches:
+      - fix/review-critical-pass
+
+permissions:
+  contents: write
+
+jobs:
+  patch-client-core:
+    if: ${{ !contains(github.event.head_commit.message, '[skip-review-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply reviewed client and aggregator fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  if new in text:
+                      return text
+                  raise AssertionError(f'anchor not found: {label}')
+              return text.replace(old, new, 1)
+
+          def replace_between(text, start, end, new_block, label):
+              start_idx = text.find(start)
+              if start_idx < 0:
+                  if new_block in text:
+                      return text
+                  raise AssertionError(f'start anchor not found: {label}')
+              end_idx = text.find(end, start_idx)
+              if end_idx < 0:
+                  raise AssertionError(f'end anchor not found: {label}')
+              return text[:start_idx] + new_block + text[end_idx:]
+
+          # App.tsx
+          p = Path('src/App.tsx')
+          t = p.read_text(encoding='utf-8')
+          t = replace_once(t, "import { getBase64FromImageUrl } from './utils/imageHelper';", "import { getImagePayloadFromUrl } from './utils/imageHelper';", 'App image helper import')
+          t = replace_once(t, "  const isUndoRedoAction = useRef(false);\n\n  // Autosave status indicator", "  const isUndoRedoAction = useRef(false);\n  const lastPushedRef = useRef<string>('');\n  const lastAnalyzedSrcRef = useRef<string>('');\n  const captionRequestInFlightRef = useRef(false);\n\n  // Autosave status indicator", 'App refs')
+          t = replace_once(t, "      setHistory([initialState]);\n      setHistoryIndex(0);", "      lastPushedRef.current = JSON.stringify(initialState);\n      setHistory([initialState]);\n      setHistoryIndex(0);", 'initial history snapshot')
+          t = replace_once(t, "  // Record history on meaningful changes (debounced)\n  const lastPushedRef = useRef<string>('');\n  useEffect(() => {", "  // Record history on meaningful changes (debounced)\n  useEffect(() => {", 'duplicate history ref')
+          t = replace_once(t, "  // Autosave Draft to localStorage\n  useEffect(() => {\n    const timer = setTimeout(() => {", "  // Autosave Draft to localStorage\n  useEffect(() => {\n    setIsDraftSaved(false);\n    const timer = setTimeout(() => {", 'autosave pending state')
+          t = replace_once(t, "  const handleApplyCrop = (croppedDataUrl: string) => {\n    setActiveImageSrc(croppedDataUrl);\n    runCompositionAnalysis(croppedDataUrl);\n    showToast('Кадрирование успешно применено!');\n  };", "  const handleApplyCrop = (croppedDataUrl: string) => {\n    setActiveImageSrc(croppedDataUrl);\n    showToast('Кадрирование успешно применено!');\n  };", 'crop duplicate analysis')
+          t = replace_once(t, "    if (originalImageSrc) {\n      setActiveImageSrc(originalImageSrc);\n      runCompositionAnalysis(originalImageSrc);\n      showToast('Исходное фото восстановлено!');", "    if (originalImageSrc) {\n      setActiveImageSrc(originalImageSrc);\n      showToast('Исходное фото восстановлено!');", 'reset duplicate analysis')
+          t = replace_once(t, "      const base64 = await getBase64FromImageUrl(srcToUse);\n      if (!base64) {\n        return;\n      }", "      const imagePayload = await getImagePayloadFromUrl(srcToUse);\n      if (!imagePayload) {\n        return;\n      }", 'composition image payload')
+          t = replace_once(t, "          imageBase64: base64,\n          mimeType: 'image/jpeg',\n          width: 600,\n          height: 600,", "          imageBase64: imagePayload.dataUrl,\n          mimeType: imagePayload.mimeType,\n          width: imagePayload.width,\n          height: imagePayload.height,", 'composition metadata')
+          t = replace_once(t, "  // Run analysis when activeImageSrc changes\n  useEffect(() => {\n    runCompositionAnalysis(activeImageSrc);\n  }, [activeImageSrc, runCompositionAnalysis]);", "  // Run analysis once per image source change. This also prevents React StrictMode\n  // from spending quota on a duplicate mount-effect request in development.\n  useEffect(() => {\n    if (!activeImageSrc || lastAnalyzedSrcRef.current === activeImageSrc) return;\n    lastAnalyzedSrcRef.current = activeImageSrc;\n    runCompositionAnalysis(activeImageSrc);\n  }, [activeImageSrc, runCompositionAnalysis]);", 'composition effect guard')
+          t = replace_once(t, "  const generateMagicCaptions = useCallback(async (overrideStyle?: string) => {\n    setIsGeneratingCaptions(true);\n    setCaptionError(null);", "  const generateMagicCaptions = useCallback(async (overrideStyle?: string) => {\n    if (captionRequestInFlightRef.current) return;\n    captionRequestInFlightRef.current = true;\n    setIsGeneratingCaptions(true);\n    setCaptionError(null);", 'caption request guard')
+          t = replace_once(t, "    try {\n      const base64 = await getBase64FromImageUrl(activeImageSrc);\n\n      const compositionPayload = compositionAnalysis ? {", "    try {\n      const imagePayload = await getImagePayloadFromUrl(activeImageSrc);\n      if (!imagePayload) {\n        throw new Error('Не удалось подготовить изображение для анализа.');\n      }\n\n      const compositionPayload = compositionAnalysis ? {", 'caption image payload')
+          t = replace_once(t, "          imageBase64: base64,\n          style: styleToUse,", "          imageBase64: imagePayload.dataUrl,\n          mimeType: imagePayload.mimeType,\n          style: styleToUse,", 'caption MIME')
+          t = replace_once(t, "    } finally {\n      setIsGeneratingCaptions(false);\n    }", "    } finally {\n      captionRequestInFlightRef.current = false;\n      setIsGeneratingCaptions(false);\n    }", 'caption guard release')
+          p.write_text(t, encoding='utf-8')
+
+          # MemeCanvas.tsx
+          p = Path('src/components/MemeCanvas.tsx')
+          t = p.read_text(encoding='utf-8')
+          old = "drawMemeOnCanvas(canvas, loadedImage, textBoxes, stickers, filter, watermark);"
+          if t.count(old) == 2:
+              t = t.replace(old, "drawMemeOnCanvas(canvas, loadedImage, textBoxes, stickers, filter, watermark, filterIntensity);")
+          elif t.count(old) != 0:
+              raise AssertionError('unexpected MemeCanvas export call count')
+          p.write_text(t, encoding='utf-8')
+
+          # HistoryAndFavoritesPanel.tsx
+          p = Path('src/components/HistoryAndFavoritesPanel.tsx')
+          t = p.read_text(encoding='utf-8')
+          t = replace_once(t, "            meme.filter,\n            meme.watermark\n          );", "            meme.filter,\n            meme.watermark,\n            meme.filterIntensity ?? 100\n          );", 'history export intensity')
+          p.write_text(t, encoding='utf-8')
+
+          # CropZoomModal.tsx
+          p = Path('src/components/CropZoomModal.tsx')
+          t = p.read_text(encoding='utf-8')
+          helper = "\n".join([
+              "  const imgRef = useRef<HTMLImageElement | null>(null);",
+              "",
+              "  const getImageAspect = () => {",
+              "    const img = imgRef.current;",
+              "    const width = img?.naturalWidth || img?.width || 1;",
+              "    const height = img?.naturalHeight || img?.height || 1;",
+              "    return width / Math.max(1, height);",
+              "  };",
+              "",
+              "  const getTargetPixelRatio = (ratio: AspectRatioOption): number | null => {",
+              "    if (ratio === 'free') return null;",
+              "    if (ratio === '1:1') return 1;",
+              "    if (ratio === '4:3') return 4 / 3;",
+              "    if (ratio === '16:9') return 16 / 9;",
+              "    return 9 / 16;",
+              "  };",
+              "",
+              "  const getPercentRatio = (ratio: AspectRatioOption): number | null => {",
+              "    const targetPixelRatio = getTargetPixelRatio(ratio);",
+              "    if (!targetPixelRatio) return null;",
+              "    return targetPixelRatio / getImageAspect();",
+              "  };",
+          ])
+          t = replace_once(t, "  const imgRef = useRef<HTMLImageElement | null>(null);", helper, 'crop helpers')
+
+          ratio_block = "\n".join([
+              "    const percentRatio = getPercentRatio(ratio);",
+              "    if (!percentRatio) return;",
+              "",
+              "    setCropBox((prev) => {",
+              "      let newW = Math.min(prev.width, 90);",
+              "      let newH = newW / percentRatio;",
+              "      if (newH > 90) {",
+              "        newH = 90;",
+              "        newW = newH * percentRatio;",
+              "      }",
+              "      if (newW > 90) {",
+              "        newW = 90;",
+              "        newH = newW / percentRatio;",
+              "      }",
+              "      const newX = Math.max(5, Math.min(95 - newW, prev.x));",
+              "      const newY = Math.max(5, Math.min(95 - newH, prev.y));",
+              "      return { x: newX, y: newY, width: newW, height: newH };",
+              "    });",
+          ])
+          t = replace_between(t, "    let targetRatio = 1;", "\n\n  // Dragging the crop region box", ratio_block, 'crop preset ratio')
+
+          resize_block = "\n".join([
+              "      } else if (isResizingCorner === 'br') {",
+              "        const maxW = 100 - dragStart.boxX;",
+              "        const maxH = 100 - dragStart.boxY;",
+              "        const percentRatio = getPercentRatio(aspectRatio);",
+              "        if (percentRatio) {",
+              "          let newW = Math.max(15, Math.min(maxW, dragStart.boxW + deltaXPercent));",
+              "          let newH = newW / percentRatio;",
+              "          if (newH > maxH) { newH = maxH; newW = newH * percentRatio; }",
+              "          if (newH < 15) { newH = 15; newW = newH * percentRatio; }",
+              "          setCropBox((prev) => ({ ...prev, width: newW, height: newH }));",
+              "        } else {",
+              "          const newW = Math.max(15, Math.min(maxW, dragStart.boxW + deltaXPercent));",
+              "          const newH = Math.max(15, Math.min(maxH, dragStart.boxH + deltaYPercent));",
+              "          setCropBox((prev) => ({ ...prev, width: newW, height: newH }));",
+              "        }",
+              "      } else if (isResizingCorner === 'tl') {",
+              "        const right = dragStart.boxX + dragStart.boxW;",
+              "        const bottom = dragStart.boxY + dragStart.boxH;",
+              "        const percentRatio = getPercentRatio(aspectRatio);",
+              "        if (percentRatio) {",
+              "          let newW = Math.max(15, Math.min(right, dragStart.boxW - deltaXPercent));",
+              "          let newH = newW / percentRatio;",
+              "          if (newH > bottom) { newH = bottom; newW = newH * percentRatio; }",
+              "          if (newH < 15) { newH = 15; newW = newH * percentRatio; }",
+              "          setCropBox({ x: right - newW, y: bottom - newH, width: newW, height: newH });",
+              "        } else {",
+              "          const newX = Math.max(0, Math.min(right - 15, dragStart.boxX + deltaXPercent));",
+              "          const newY = Math.max(0, Math.min(bottom - 15, dragStart.boxY + deltaYPercent));",
+              "          setCropBox({ x: newX, y: newY, width: right - newX, height: bottom - newY });",
+              "        }",
+          ])
+          t = replace_between(t, "      } else if (isResizingCorner === 'br') {", "\n    };\n\n    const handleMouseUp", resize_block, 'crop resize ratio')
+          t = replace_once(t, "    const canvas = document.createElement('canvas');\n    canvas.width = Math.max(200, Math.round(sourceW));\n    canvas.height = Math.max(200, Math.round(sourceH));", "    const canvas = document.createElement('canvas');\n    const minOutputDimension = 200;\n    const outputScale = Math.max(1, minOutputDimension / Math.max(1, Math.min(sourceW, sourceH)));\n    canvas.width = Math.max(1, Math.round(sourceW * outputScale));\n    canvas.height = Math.max(1, Math.round(sourceH * outputScale));", 'crop output aspect')
+          t = replace_once(t, "  if (!isOpen) return null;\n\n  return (", "  const effectiveImageSrc =\n    imageSrc.startsWith('http') && !imageSrc.includes(window.location.host)\n      ? `/api/proxy-image?url=${encodeURIComponent(imageSrc)}`\n      : imageSrc;\n\n  if (!isOpen) return null;\n\n  return (", 'crop proxy')
+          t = replace_once(t, "                src={imageSrc}", "                src={effectiveImageSrc}", 'crop proxied src')
+          p.write_text(t, encoding='utf-8')
+
+          # memeAggregator.ts
+          p = Path('server/memeAggregator.ts')
+          t = p.read_text(encoding='utf-8')
+          query_block = "\n".join([
+              "  if (query) {",
+              "    fullPool = fullPool.filter((item) => {",
+              "      const matchTitle = item.title.toLowerCase().includes(query);",
+              "      const matchTags = item.tags?.some((tag) => tag.toLowerCase().includes(query));",
+              "      return matchTitle || matchTags;",
+              "    });",
+              "  }",
+          ])
+          t = replace_between(t, "  if (query) {", "\n\n  // Deduplication Phase:", query_block, 'aggregator search')
+          fallback_block = "\n".join([
+              "  let finalSelectionPool = [...uniquePool];",
+              "  if (finalSelectionPool.length < limit) {",
+              "    const needed = limit - finalSelectionPool.length;",
+              "    const backupPool: WebMemeItem[] = [];",
+              "    for (const item of fullPool) {",
+              "      const itemHash = (item.hash || computeImageSignature(item.title, item.imageUrl)).toLowerCase();",
+              "      const imgUrl = item.imageUrl.toLowerCase().split('?')[0];",
+              "      if (!seenHashes.has(itemHash) && !seenImageUrls.has(imgUrl)) {",
+              "        seenHashes.add(itemHash);",
+              "        seenImageUrls.add(imgUrl);",
+              "        backupPool.push(item);",
+              "        if (backupPool.length >= needed) break;",
+              "      }",
+              "    }",
+              "    finalSelectionPool = [...finalSelectionPool, ...backupPool];",
+              "  }",
+          ])
+          t = replace_between(t, "  let finalSelectionPool = uniquePool;", "\n\n  // Balanced selection:", fallback_block, 'aggregator fallback')
+          p.write_text(t, encoding='utf-8')
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit verified patch
+        run: |
+          if git diff --quiet; then
+            echo "No client/core changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx src/components/MemeCanvas.tsx src/components/HistoryAndFavoritesPanel.tsx src/components/CropZoomModal.tsx server/memeAggregator.ts
+          git commit -m "fix: apply reviewed client correctness and quota fixes [skip-review-fix]"
+          git push
