@@ -91,6 +91,17 @@ const FALLBACKS: Record<string, FallbackSeed[]> = {
   ],
 };
 
+function fallbackMechanic(index: number): string {
+  switch (index % 3) {
+    case 1:
+      return 'Контраст';
+    case 2:
+      return 'Неожиданная интерпретация';
+    default:
+      return 'Наблюдение';
+  }
+}
+
 function normalizeCaption(value: unknown, styleId: string, index: number): CaptionResult | null {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Record<string, unknown>;
@@ -104,7 +115,7 @@ function normalizeCaption(value: unknown, styleId: string, index: number): Capti
     topText,
     bottomText,
     style: typeof raw.style === 'string' && raw.style.trim() ? raw.style.trim() : profile.nameRu,
-    humorMechanic: typeof raw.humorMechanic === 'string' && raw.humorMechanic.trim() ? raw.humorMechanic.trim() : ['Наблюдение', 'Контраст', 'Неожиданная интерпретация'][index % 3],
+    humorMechanic: typeof raw.humorMechanic === 'string' && raw.humorMechanic.trim() ? raw.humorMechanic.trim() : fallbackMechanic(index),
     imageConnection: typeof raw.imageConnection === 'string' ? raw.imageConnection.trim() : 'Шутка опирается на заметную деталь текущего изображения.',
     explanation: typeof raw.explanation === 'string' ? raw.explanation.trim() : 'Сетап и панчлайн сталкивают ожидание с визуальной реальностью кадра.',
     visualContradiction: typeof raw.visualContradiction === 'string' ? raw.visualContradiction.trim() : 'Серьезная подача контрастирует с комичностью ситуации.',
@@ -115,7 +126,7 @@ function normalizeCaption(value: unknown, styleId: string, index: number): Capti
 
 function buildFallbackCaptions(styleId: string, customContext = ''): CaptionResult[] {
   const profile = getHumorProfile(styleId);
-  const seeds = FALLBACKS[styleId] || FALLBACKS.trending;
+  const seeds = FALLBACKS[styleId] ?? FALLBACKS.trending ?? [];
   const context = customContext.trim();
 
   return seeds.slice(0, 3).map(([headline, topText, bottomText], index) => ({
@@ -123,7 +134,7 @@ function buildFallbackCaptions(styleId: string, customContext = ''): CaptionResu
     topText,
     bottomText,
     style: profile.nameRu,
-    humorMechanic: ['Наблюдение', 'Контраст', 'Неожиданная интерпретация'][index],
+    humorMechanic: fallbackMechanic(index),
     imageConnection: 'Локальный резервный вариант: после восстановления Gemini лучше перегенерировать подписи для точной привязки к фото.',
     explanation: 'Резервная подпись сохраняет работоспособность редактора при недоступности модели.',
     visualContradiction: 'Резервный режим не выполняет полноценный визуальный анализ.',
