@@ -1,0 +1,36 @@
+# MEMENATOR Technical Review
+
+Persistent checklist from the 2026-09-08 full repository review. This file is the source of truth for the cleanup pass so the work does not depend on chat memory.
+
+## P0 — critical
+- [x] Prevent duplicate Gemini caption requests when changing humor style.
+- [x] Harden `/api/proxy-image` against SSRF/open-proxy abuse with host allowlist, redirect validation, timeout, MIME and size checks.
+- [x] Fix oversized history thumbnails that were silently re-rendered at 900–1400px.
+- [x] Add quota-aware history trimming as an immediate localStorage safeguard.
+- [ ] Move large editable image history/draft payloads from localStorage to IndexedDB.
+- [x] Normalize/migrate web favorites and align favorite data types.
+
+## P1 — correctness / quota
+- [x] Preserve filter intensity in Download / Copy / history export.
+- [x] Fix crop aspect-ratio math for non-square images.
+- [x] Fix crop of external images through the safe image proxy.
+- [x] Remove duplicate composition-analysis request after crop/reset.
+- [x] Detect and pass real image MIME type and dimensions to Gemini.
+- [x] Fix web-meme dedupe fallback so unique items are not discarded.
+- [x] Return an honest empty search result instead of unrelated random memes.
+
+## P2 — polish / maintainability
+- [ ] Make Fill preview match export semantics.
+- [ ] Consolidate canvas/crop pointer and touch interactions with Pointer Events.
+- [x] Clean up initial Undo/Redo duplicate snapshot behavior.
+- [x] Make autosave status reflect pending vs saved state.
+- [ ] Label composition fallback as heuristic rather than real AI analysis.
+- [x] Improve retry handling for 429 / RESOURCE_EXHAUSTED.
+- [ ] Split oversized `server.ts`, `MemeCanvas.tsx`, and `App.tsx` without changing behavior.
+- [ ] Deduplicate shared AI style configuration.
+- [ ] Tighten TypeScript settings incrementally.
+- [ ] Add permanent typecheck/tests/build CI safety net.
+- [x] Read `PORT` from the environment.
+
+## Verification rule
+For each non-trivial code pass: run TypeScript typecheck and production build before marking the item complete. Avoid temporary self-modifying Actions workflows; keep verification workflows read-only.
