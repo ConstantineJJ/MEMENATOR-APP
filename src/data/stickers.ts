@@ -1,8 +1,10 @@
+import type { MemeStickerType } from '../types';
+
 export interface StickerDefinition {
   id: string;
   label: string;
   category: 'mascot' | 'accessories' | 'badges' | 'reactions' | 'characters';
-  type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'custom' | 'badge' | 'sticker-art' | 'stamp';
+  type: MemeStickerType;
   emoji?: string;
   badgeText?: string;
   badgeColor?: string;
