@@ -1,24 +1,7 @@
 import React, { useState } from 'react';
 import { CaptionSuggestion } from '../types';
-import {
-  Sparkles,
-  Check,
-  Flame,
-  Target,
-  Coffee,
-  Briefcase,
-  Radio,
-  Laugh,
-  Zap,
-  Heart,
-  Brain,
-  Gamepad2,
-  HeartHandshake,
-  Film,
-  Dices,
-  Maximize2,
-  RefreshCw,
-} from 'lucide-react';
+import { AI_STYLES, getAiStyle } from '../data/aiStyles';
+import { Sparkles, Check, Maximize2 } from 'lucide-react';
 
 interface SuggestedMemesPanelProps {
   captions: CaptionSuggestion[];
@@ -31,22 +14,6 @@ interface SuggestedMemesPanelProps {
   onCustomContextChange?: (ctx: string) => void;
   onOpenFullModal?: () => void;
 }
-
-const AI_STYLES = [
-  { id: 'trending', label: 'Тренды', icon: Flame, desc: 'Вирусный интернет-юмор' },
-  { id: 'roast', label: 'Подкол / Прожарка', icon: Target, desc: 'Острый, язвительный юмор' },
-  { id: 'relatable', label: 'Жиза / Бытовуха', icon: Coffee, desc: 'То, что всех достало' },
-  { id: 'work', label: 'Work (Офис/IT)', icon: Briefcase, desc: 'Дедлайны, созвоны, баги' },
-  { id: 'millennials', label: 'Миллениалы', icon: Radio, desc: 'Дети 90-х, фишки, ностальгия' },
-  { id: 'genz', label: 'Зумеры', icon: Laugh, desc: 'Постирония и абсурд' },
-  { id: 'sarcastic', label: 'Сарказм', icon: Zap, desc: 'Едкая ирония' },
-  { id: 'wholesome', label: 'Добро и милота', icon: Heart, desc: 'Теплый, поддерживающий юмор' },
-  { id: 'philosophy', label: 'Ночные мысли', icon: Brain, desc: 'Мысли в 3 часа ночи' },
-  { id: 'gaming', label: 'Гейминг', icon: Gamepad2, desc: 'Рейтинг, лаги, тиммейты' },
-  { id: 'dating', label: 'Отношения', icon: HeartHandshake, desc: 'Ред флаги, свидания' },
-  { id: 'cinema', label: 'Кино', icon: Film, desc: 'Кинематографичный пафос' },
-  { id: 'absurd', label: 'Шитпост', icon: Dices, desc: 'Сюрреалистичный юмор' },
-];
 
 export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
   captions,
@@ -122,7 +89,7 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
             Стиль юмора:
           </span>
           <span className="text-amber-400 font-medium">
-            {AI_STYLES.find((s) => s.id === selectedStyle)?.label || 'Тренды'}
+            {getAiStyle(selectedStyle)?.compactLabel || 'Тренды'}
           </span>
         </div>
 
@@ -146,7 +113,7 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
                     isSelected ? 'text-amber-400' : 'text-neutral-400'
                   }`}
                 />
-                <span className="truncate">{style.label}</span>
+                <span className="truncate">{style.compactLabel}</span>
               </button>
             );
           })}
@@ -239,101 +206,100 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
             </div>
 
             <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+              {captions.map((caption, idx) => {
+                const isApplied = appliedIndex === idx;
 
-          {captions.map((caption, idx) => {
-            const isApplied = appliedIndex === idx;
-
-            return (
-              <div
-                key={idx}
-                onClick={() => handleApply(caption, idx)}
-                className={`p-3 rounded-2xl border transition-all cursor-pointer text-left space-y-1.5 relative group ${
-                  isApplied
-                    ? 'border-emerald-400 bg-emerald-500/10 shadow-lg'
-                    : 'border-neutral-800 bg-neutral-950/70 hover:border-amber-400/60 hover:bg-neutral-950'
-                }`}
-              >
-                {/* Card Header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-400 text-neutral-950 uppercase tracking-wider">
-                      Вариант #{idx + 1}
-                    </span>
-                    <span className="text-xs font-bold text-white truncate max-w-[170px]">
-                      {caption.headline || 'Панчлайн'}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => handleApply(caption, idx)}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer text-left space-y-1.5 relative group ${
                       isApplied
-                        ? 'bg-emerald-400 text-neutral-950'
-                        : 'bg-neutral-800 text-neutral-200 group-hover:bg-amber-400 group-hover:text-neutral-950'
+                        ? 'border-emerald-400 bg-emerald-500/10 shadow-lg'
+                        : 'border-neutral-800 bg-neutral-950/70 hover:border-amber-400/60 hover:bg-neutral-950'
                     }`}
                   >
-                    {isApplied ? (
-                      <>
-                        <Check className="w-3 h-3" />
-                        <span>Наложено!</span>
-                      </>
-                    ) : (
-                      <span>Выбрать</span>
-                    )}
-                  </button>
-                </div>
+                    {/* Card Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-400 text-neutral-950 uppercase tracking-wider">
+                          Вариант #{idx + 1}
+                        </span>
+                        <span className="text-xs font-bold text-white truncate max-w-[170px]">
+                          {caption.headline || 'Панчлайн'}
+                        </span>
+                      </div>
 
-                {/* Top and Bottom lines preview */}
-                <div className="space-y-1 text-xs">
-                  {caption.topText && (
-                    <div className="flex items-start gap-1 bg-neutral-900/80 px-2 py-1 rounded-lg border border-neutral-800/60">
-                      <span className="text-[9px] font-bold text-neutral-400 uppercase shrink-0 pt-0.5">
-                        Верх:
-                      </span>
-                      <span className="font-semibold text-neutral-100 line-clamp-2">
-                        "{caption.topText}"
-                      </span>
+                      <button
+                        type="button"
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                          isApplied
+                            ? 'bg-emerald-400 text-neutral-950'
+                            : 'bg-neutral-800 text-neutral-200 group-hover:bg-amber-400 group-hover:text-neutral-950'
+                        }`}
+                      >
+                        {isApplied ? (
+                          <>
+                            <Check className="w-3 h-3" />
+                            <span>Наложено!</span>
+                          </>
+                        ) : (
+                          <span>Выбрать</span>
+                        )}
+                      </button>
                     </div>
-                  )}
 
-                  {caption.bottomText && (
-                    <div className="flex items-start gap-1 bg-neutral-900/80 px-2 py-1 rounded-lg border border-neutral-800/60">
-                      <span className="text-[9px] font-bold text-amber-400 uppercase shrink-0 pt-0.5">
-                        Низ:
-                      </span>
-                      <span className="font-semibold text-amber-300 line-clamp-2">
-                        "{caption.bottomText}"
-                      </span>
+                    {/* Top and Bottom lines preview */}
+                    <div className="space-y-1 text-xs">
+                      {caption.topText && (
+                        <div className="flex items-start gap-1 bg-neutral-900/80 px-2 py-1 rounded-lg border border-neutral-800/60">
+                          <span className="text-[9px] font-bold text-neutral-400 uppercase shrink-0 pt-0.5">
+                            Верх:
+                          </span>
+                          <span className="font-semibold text-neutral-100 line-clamp-2">
+                            "{caption.topText}"
+                          </span>
+                        </div>
+                      )}
+
+                      {caption.bottomText && (
+                        <div className="flex items-start gap-1 bg-neutral-900/80 px-2 py-1 rounded-lg border border-neutral-800/60">
+                          <span className="text-[9px] font-bold text-amber-400 uppercase shrink-0 pt-0.5">
+                            Низ:
+                          </span>
+                          <span className="font-semibold text-amber-300 line-clamp-2">
+                            "{caption.bottomText}"
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {/* Insight Badges: Mechanic & Visual Details */}
-                <div className="flex flex-wrap items-center gap-1 text-[10px] pt-0.5">
-                  {caption.humorMechanic && (
-                    <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium shrink-0">
-                      🎯 {caption.humorMechanic}
-                    </span>
-                  )}
-                  {caption.spottedDetail && (
-                    <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/25 line-clamp-1">
-                      🔍 {caption.spottedDetail}
-                    </span>
-                  )}
-                  {caption.visualContradiction && (
-                    <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/25 line-clamp-1">
-                      ⚡ {caption.visualContradiction}
-                    </span>
-                  )}
-                  {!caption.visualContradiction && caption.detectedMood && (
-                    <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 line-clamp-1">
-                      🎭 {caption.detectedMood}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                    {/* Insight Badges: Mechanic & Visual Details */}
+                    <div className="flex flex-wrap items-center gap-1 text-[10px] pt-0.5">
+                      {caption.humorMechanic && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium shrink-0">
+                          🎯 {caption.humorMechanic}
+                        </span>
+                      )}
+                      {caption.spottedDetail && (
+                        <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/25 line-clamp-1">
+                          🔍 {caption.spottedDetail}
+                        </span>
+                      )}
+                      {caption.visualContradiction && (
+                        <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/25 line-clamp-1">
+                          ⚡ {caption.visualContradiction}
+                        </span>
+                      )}
+                      {!caption.visualContradiction && caption.detectedMood && (
+                        <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 line-clamp-1">
+                          🎭 {caption.detectedMood}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
