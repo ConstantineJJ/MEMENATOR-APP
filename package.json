@@ -11,7 +11,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/memeAggregator.test.ts tests/perceptualHash.test.ts tests/captionSelector.test.ts tests/humorPrompts.test.ts tests/imageGeneration.test.ts tests/responsiveProfiles.test.ts"
+    "test": "tsx --test tests/memeAggregator.test.ts tests/perceptualHash.test.ts tests/captionSelector.test.ts tests/humorPrompts.test.ts tests/imageGeneration.test.ts tests/responsiveProfiles.test.ts tests/imageHelper.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
