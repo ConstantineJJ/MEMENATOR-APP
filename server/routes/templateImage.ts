@@ -84,7 +84,6 @@ function parseSourceImage(value: unknown, fallbackMimeType: unknown): { data: st
     return { mimeType: dataUrl[1], data: dataUrl[2] };
   }
 
-  // Raw base64 is accepted for callers that already stripped the data URL prefix.
   if (/^[a-zA-Z0-9+/=\s]+$/.test(source) && source.length > 64) {
     return {
       mimeType: typeof fallbackMimeType === 'string' && fallbackMimeType.startsWith('image/')
@@ -139,11 +138,11 @@ export function registerTemplateImageRoute(app: Express) {
 
       for (const modelName of IMAGE_MODELS) {
         try {
-          const imageOptions: Record<string, string> = {
+          const imageConfig: Record<string, unknown> = {
             aspectRatio: safeAspectRatio,
           };
           if (modelName !== 'gemini-2.5-flash-image') {
-            imageOptions.imageSize = '1K';
+            imageConfig.imageSize = '1K';
           }
 
           const response = await callWithRetry(
@@ -152,9 +151,7 @@ export function registerTemplateImageRoute(app: Express) {
               contents,
               config: {
                 responseModalities: ['IMAGE'],
-                responseFormat: {
-                  image: imageOptions,
-                },
+                imageConfig,
               },
             }),
             1,
