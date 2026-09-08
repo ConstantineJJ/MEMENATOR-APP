@@ -32,7 +32,8 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [x] Remove the dedicated Filters/Stickers sidebar block from the desktop layout. Existing filter/sticker state remains readable/editable for backward compatibility with saved projects, while the lower-left 40% is intentionally reserved for a future high-value feature.
 - [x] Split oversized `server.ts`, `MemeCanvas.tsx`, and `App.tsx` into focused modules without changing the main product flow. `App.tsx` delegates stateful concerns to dedicated hooks; `MemeCanvas` delegates toolbar/export/guides; and the former ~98 KB `server.ts` is now a small bootstrap that registers modular web-meme, magic-caption, composition and image-template routes plus shared Gemini utilities.
 - [x] Deduplicate shared AI style configuration between the compact panel and full caption modal.
-- [ ] Tighten TypeScript settings incrementally. Progress: `strictBindCallApply`, `strictFunctionTypes`, `noImplicitThis`, and `noUncheckedSideEffectImports` are enabled; Vite client declarations added so asset imports remain type-safe.
+- [x] Enable full TypeScript `strict` mode. React/ReactDOM declarations are explicit dev dependencies, `noImplicitAny` exposed and fixed the untyped composition fallback, `strictNullChecks` passed cleanly, and the final consolidated `strict: true` configuration passes CI.
+- [ ] Prepare for `noUncheckedIndexedAccess` as an extra hardening step beyond `strict`. A diagnostic pass found unchecked array/record lookups in the aggregator, App defaults, fallback caption tables, canvas helpers, perceptual hash/sticker rendering and a few tests; keep this separate so `main` stays green while those guards are tightened deliberately.
 - [x] Add permanent read-only typecheck/build CI safety net.
 - [x] Add initial automated tests to the CI safety net; aggregator, perceptual hash, caption curation and humor-prompt variety now have coverage.
 - [x] Read `PORT` from the environment.
