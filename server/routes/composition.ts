@@ -2,8 +2,23 @@ import { Type } from '@google/genai';
 import type { Express } from 'express';
 import { getGeminiClient } from '../gemini';
 
+interface FallbackFocalSubject {
+  name: string;
+  box: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  role: string;
+  gazeDirection?: string;
+  description: string;
+}
+
 function getFallbackCompositionAnalysis(width = 600, height = 600) {
   const isLandscape = width > height;
+  const focalSubjects: FallbackFocalSubject[] = [];
+
   return {
     overallScore: 72,
     balanceAssessment: isLandscape
@@ -17,7 +32,7 @@ function getFallbackCompositionAnalysis(width = 600, height = 600) {
       contrastReadability: 75,
       comedicFocus: 68,
     },
-    focalSubjects: [],
+    focalSubjects,
     safeZones: [
       {
         area: 'top',
