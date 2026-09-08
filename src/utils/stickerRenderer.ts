@@ -1,5 +1,45 @@
 import { MemeSticker } from '../types';
 
+function withRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) {
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, width, height, radius);
+  } else {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+}
+
+function setSoftStickerShadow(ctx: CanvasRenderingContext2D, scale: number, strength = 0.42) {
+  ctx.shadowColor = `rgba(0, 0, 0, ${strength})`;
+  ctx.shadowBlur = 8 * scale;
+  ctx.shadowOffsetX = 2 * scale;
+  ctx.shadowOffsetY = 4 * scale;
+}
+
+function clearShadow(ctx: CanvasRenderingContext2D) {
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+}
+
 export function renderStickerOnCanvas(
   ctx: CanvasRenderingContext2D,
   sticker: MemeSticker,
@@ -7,18 +47,14 @@ export function renderStickerOnCanvas(
   targetHeight: number
 ) {
   ctx.save();
+
   const xPos = (sticker.x / 100) * targetWidth;
   const yPos = (sticker.y / 100) * targetHeight;
-
   ctx.translate(xPos, yPos);
   ctx.rotate(((sticker.rotation || 0) * Math.PI) / 180);
-  const scale = (sticker.scale || 1) * (targetWidth / 600);
 
-  // Apply subtle realistic sticker drop shadow
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-  ctx.shadowBlur = 8 * scale;
-  ctx.shadowOffsetX = 2 * scale;
-  ctx.shadowOffsetY = 4 * scale;
+  const scale = (sticker.scale || 1) * (targetWidth / 600);
+  setSoftStickerShadow(ctx, scale);
 
   const sId = sticker.stickerId || sticker.type;
 
@@ -28,79 +64,54 @@ export function renderStickerOnCanvas(
     drawThugSunglasses(ctx, scale);
   } else if (sticker.type === 'laser-eyes' || sId.startsWith('laser-eyes')) {
     const isCyan = sId.includes('cyan') || sticker.emoji === '⚡';
-    drawLaserEyes(ctx, scale, isCyan ? '#06b6d4' : '#ef4444');
+    drawLaserEyes(ctx, scale, isCyan ? '#22d3ee' : '#fb3b4a');
   } else if (sId === 'gold-chain' || sticker.emoji === '💰') {
     drawGoldChain(ctx, scale);
   } else if (sId === 'king-crown' || sticker.emoji === '👑') {
     drawCrown(ctx, scale);
   } else if (sId === 'thug-joint' || sticker.emoji === '🚬') {
     drawJoint(ctx, scale);
-  } else if (sticker.type === 'stamp' || sId.startsWith('badge-approved') || sId.startsWith('badge-top-secret') || sId.startsWith('badge-100') || sId.startsWith('badge-w')) {
+  } else if (
+    sticker.type === 'stamp' ||
+    sId.startsWith('badge-approved') ||
+    sId.startsWith('badge-top-secret') ||
+    sId.startsWith('badge-100') ||
+    sId.startsWith('badge-w')
+  ) {
     drawStamp(ctx, scale, sticker.label || 'APPROVED', sId);
   } else if (sticker.type === 'badge' || sId.startsWith('badge-')) {
     drawBadgePlate(ctx, scale, sticker.label || 'BRUH', sId);
   } else if (sticker.type === 'sticker-art' && sticker.emoji) {
-    drawCharacterStickerArt(ctx, scale, sticker.emoji, sticker.label);
+    drawCharacterStickerArt(ctx, scale, sticker.emoji);
   } else {
-    // Standard Emoji drawn as a real Die-Cut Vinyl Sticker with White Contour!
-    drawEmojiDieCut(ctx, scale, sticker.emoji || '🔥');
+    drawEmojiSticker(ctx, scale, sticker.emoji || '🔥');
   }
 
   ctx.restore();
 }
 
-/**
- * 🍉 Watermelon Boss Mascot (Die-Cut Sticker from ava.png)
- */
 function drawWatermelonMascot(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.save();
   const s = scale * 0.95;
 
-  // 1. Thick White Die-Cut Silhouette Contour
-  ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 10 * s;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
+  // Compact dark outline instead of a giant white die-cut silhouette.
+  ctx.strokeStyle = 'rgba(9, 9, 11, 0.88)';
+  ctx.lineWidth = 4 * s;
   ctx.beginPath();
-  ctx.moveTo(0, -45 * s);
-  ctx.lineTo(44 * s, 32 * s);
-  ctx.quadraticCurveTo(0, 48 * s, -44 * s, 32 * s);
+  ctx.moveTo(0, -44 * s);
+  ctx.lineTo(43 * s, 31 * s);
+  ctx.quadraticCurveTo(0, 47 * s, -43 * s, 31 * s);
   ctx.closePath();
   ctx.stroke();
-  ctx.fill();
 
-  // Reset shadow for internal details
-  ctx.shadowColor = 'transparent';
-
-  // 2. Green Rind Arc
-  ctx.fillStyle = '#16a34a';
-  ctx.beginPath();
-  ctx.moveTo(-42 * s, 31 * s);
-  ctx.quadraticCurveTo(0, 45 * s, 42 * s, 31 * s);
-  ctx.lineTo(45 * s, 37 * s);
-  ctx.quadraticCurveTo(0, 52 * s, -45 * s, 37 * s);
-  ctx.closePath();
-  ctx.fill();
-
-  // 3. Yellow-White Inner Rind Stripe
-  ctx.fillStyle = '#fef08a';
-  ctx.beginPath();
-  ctx.moveTo(-40 * s, 28 * s);
-  ctx.quadraticCurveTo(0, 41 * s, 40 * s, 28 * s);
-  ctx.lineTo(42 * s, 32 * s);
-  ctx.quadraticCurveTo(0, 45 * s, -42 * s, 32 * s);
-  ctx.closePath();
-  ctx.fill();
-
-  // 4. Red Watermelon Pulp with juicy gradient
-  const redGrad = ctx.createLinearGradient(0, -40 * s, 0, 30 * s);
-  redGrad.addColorStop(0, '#ff4766');
-  redGrad.addColorStop(0.7, '#e11d48');
-  redGrad.addColorStop(1, '#be123c');
-  ctx.fillStyle = redGrad;
-
+  const pulp = ctx.createLinearGradient(0, -42 * s, 0, 32 * s);
+  pulp.addColorStop(0, '#ff607a');
+  pulp.addColorStop(0.62, '#ef2951');
+  pulp.addColorStop(1, '#be123c');
+  ctx.fillStyle = pulp;
   ctx.beginPath();
   ctx.moveTo(0, -42 * s);
   ctx.lineTo(39 * s, 27 * s);
@@ -108,27 +119,46 @@ function drawWatermelonMascot(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.closePath();
   ctx.fill();
 
-  // 5. Watermelon Seeds
+  clearShadow(ctx);
+
+  ctx.fillStyle = '#fde68a';
+  ctx.beginPath();
+  ctx.moveTo(-40 * s, 27 * s);
+  ctx.quadraticCurveTo(0, 40 * s, 40 * s, 27 * s);
+  ctx.lineTo(42 * s, 32 * s);
+  ctx.quadraticCurveTo(0, 44 * s, -42 * s, 32 * s);
+  ctx.closePath();
+  ctx.fill();
+
+  const rind = ctx.createLinearGradient(0, 30 * s, 0, 48 * s);
+  rind.addColorStop(0, '#22c55e');
+  rind.addColorStop(1, '#15803d');
+  ctx.fillStyle = rind;
+  ctx.beginPath();
+  ctx.moveTo(-42 * s, 31 * s);
+  ctx.quadraticCurveTo(0, 45 * s, 42 * s, 31 * s);
+  ctx.lineTo(45 * s, 37 * s);
+  ctx.quadraticCurveTo(0, 51 * s, -45 * s, 37 * s);
+  ctx.closePath();
+  ctx.fill();
+
   ctx.fillStyle = '#18181b';
-  const seedPositions = [
-    { x: -2, y: -20, r: 2.2 },
-    { x: -16, y: 12, r: 2.5 },
-    { x: 18, y: 12, r: 2.5 },
-    { x: -6, y: 22, r: 2.2 },
-    { x: 8, y: 22, r: 2.2 },
-  ];
-  seedPositions.forEach((sd) => {
+  [
+    [-2, -19, 2.2],
+    [-16, 10, 2.4],
+    [18, 10, 2.4],
+    [-7, 20, 2.1],
+    [8, 20, 2.1],
+  ].forEach(([x, y, r]) => {
     ctx.beginPath();
-    ctx.ellipse(sd.x * s, sd.y * s, sd.r * s, sd.r * 1.5 * s, 0, 0, Math.PI * 2);
+    ctx.ellipse(x * s, y * s, r * s, r * 1.45 * s, 0, 0, Math.PI * 2);
     ctx.fill();
   });
 
-  // 6. Cool Black Sunglasses
-  ctx.fillStyle = '#000000';
-  ctx.strokeStyle = '#09090b';
+  // Sunglasses.
+  ctx.fillStyle = '#050505';
+  ctx.strokeStyle = '#27272a';
   ctx.lineWidth = 1.5 * s;
-
-  // Left lens
   ctx.beginPath();
   ctx.moveTo(-24 * s, -3 * s);
   ctx.lineTo(-4 * s, -4 * s);
@@ -138,7 +168,6 @@ function drawWatermelonMascot(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.fill();
   ctx.stroke();
 
-  // Right lens
   ctx.beginPath();
   ctx.moveTo(4 * s, -4 * s);
   ctx.lineTo(24 * s, -3 * s);
@@ -148,173 +177,151 @@ function drawWatermelonMascot(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.fill();
   ctx.stroke();
 
-  // Sunglasses Bridge & Arms
-  ctx.lineWidth = 3.5 * s;
-  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 3 * s;
+  ctx.strokeStyle = '#050505';
   ctx.beginPath();
   ctx.moveTo(-5 * s, -2 * s);
   ctx.lineTo(5 * s, -2 * s);
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.moveTo(-24 * s, 1 * s);
-  ctx.lineTo(-33 * s, 4 * s);
-  ctx.moveTo(24 * s, 1 * s);
-  ctx.lineTo(33 * s, 4 * s);
-  ctx.stroke();
-
-  // Lens White Glare Lines
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.8 * s;
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+  ctx.lineWidth = 1.5 * s;
   ctx.beginPath();
   ctx.moveTo(-20 * s, 0);
-  ctx.lineTo(-11 * s, -1 * s);
+  ctx.lineTo(-12 * s, -1 * s);
   ctx.moveTo(9 * s, -1 * s);
-  ctx.lineTo(18 * s, 0);
+  ctx.lineTo(17 * s, 0);
   ctx.stroke();
 
-  // 7. Smug Smirking Smile
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 2.8 * s;
-  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#09090b';
+  ctx.lineWidth = 2.6 * s;
   ctx.beginPath();
   ctx.moveTo(-8 * s, 16 * s);
   ctx.quadraticCurveTo(0, 22 * s, 12 * s, 15 * s);
   ctx.stroke();
 
-  // 8. Stick Legs & Hands
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 3.2 * s;
-  // Left Leg
+  // Tiny arms/legs retain the mascot feel without turning into a white blob.
+  ctx.lineWidth = 3 * s;
   ctx.beginPath();
-  ctx.moveTo(-22 * s, 42 * s);
-  ctx.lineTo(-28 * s, 54 * s);
-  ctx.lineTo(-38 * s, 52 * s);
-  ctx.stroke();
-
-  // Right Leg
-  ctx.beginPath();
-  ctx.moveTo(22 * s, 42 * s);
-  ctx.lineTo(28 * s, 54 * s);
-  ctx.lineTo(38 * s, 52 * s);
-  ctx.stroke();
-
-  // Left Hand
-  ctx.beginPath();
-  ctx.moveTo(-36 * s, 30 * s);
-  ctx.lineTo(-46 * s, 46 * s);
-  ctx.stroke();
-
-  // Right Hand
-  ctx.beginPath();
-  ctx.moveTo(36 * s, 30 * s);
-  ctx.lineTo(46 * s, 46 * s);
+  ctx.moveTo(-21 * s, 41 * s);
+  ctx.lineTo(-28 * s, 53 * s);
+  ctx.lineTo(-37 * s, 51 * s);
+  ctx.moveTo(21 * s, 41 * s);
+  ctx.lineTo(28 * s, 53 * s);
+  ctx.lineTo(37 * s, 51 * s);
+  ctx.moveTo(-36 * s, 29 * s);
+  ctx.lineTo(-46 * s, 44 * s);
+  ctx.moveTo(36 * s, 29 * s);
+  ctx.lineTo(46 * s, 44 * s);
   ctx.stroke();
 
   ctx.restore();
 }
 
-/**
- * 🕶️ Thug Life Sunglasses with White Die-Cut Contour
- */
 function drawThugSunglasses(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.save();
-  const w = 130 * scale;
-  const h = 34 * scale;
+  const s = scale;
+  const w = 130 * s;
+  const h = 34 * s;
 
-  // White Die-cut backing outline
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(-w / 2 - 5 * scale, -h / 2 - 5 * scale, w + 10 * scale, h + 10 * scale);
-
-  ctx.shadowColor = 'transparent';
-  // Black Frame
-  ctx.fillStyle = '#000000';
+  // Pixel glasses should look like an accessory, not a white rectangle sticker.
+  const lens = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+  lens.addColorStop(0, '#18181b');
+  lens.addColorStop(1, '#020202');
+  ctx.fillStyle = lens;
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 2.5 * s;
   ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeRect(-w / 2, -h / 2, w, h);
 
-  // White Pixel Highlights
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(-w / 2 + 10 * scale, -h / 2 + 4 * scale, 16 * scale, 8 * scale);
-  ctx.fillRect(10 * scale, -h / 2 + 4 * scale, 16 * scale, 8 * scale);
-  ctx.fillRect(-w / 2 + 30 * scale, -h / 2 + 14 * scale, 8 * scale, 8 * scale);
-  ctx.fillRect(30 * scale, -h / 2 + 14 * scale, 8 * scale, 8 * scale);
-
-  // Side Arms
-  ctx.fillStyle = '#18181b';
-  ctx.fillRect(-w / 2 - 14 * scale, -h / 2 - 4 * scale, 16 * scale, 7 * scale);
-  ctx.fillRect(w / 2 - 2 * scale, -h / 2 - 4 * scale, 16 * scale, 7 * scale);
+  clearShadow(ctx);
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.fillRect(-w / 2 + 10 * s, -h / 2 + 4 * s, 16 * s, 7 * s);
+  ctx.fillRect(10 * s, -h / 2 + 4 * s, 16 * s, 7 * s);
+  ctx.fillStyle = '#27272a';
+  ctx.fillRect(-w / 2 - 14 * s, -h / 2 - 3 * s, 16 * s, 7 * s);
+  ctx.fillRect(w / 2 - 2 * s, -h / 2 - 3 * s, 16 * s, 7 * s);
 
   ctx.restore();
 }
 
-/**
- * 🔴 Laser Eyes Effect
- */
 function drawLaserEyes(ctx: CanvasRenderingContext2D, scale: number, colorHex: string) {
   ctx.save();
-  const radius = 28 * scale;
+  const radius = 30 * scale;
 
-  const grad = ctx.createRadialGradient(0, 0, 3 * scale, 0, 0, radius);
-  grad.addColorStop(0, '#ffffff');
-  grad.addColorStop(0.3, colorHex);
-  grad.addColorStop(0.7, colorHex + '99');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-
-  ctx.fillStyle = grad;
+  clearShadow(ctx);
+  const glow = ctx.createRadialGradient(0, 0, 2 * scale, 0, 0, radius);
+  glow.addColorStop(0, '#ffffff');
+  glow.addColorStop(0.16, colorHex);
+  glow.addColorStop(0.48, `${colorHex}bb`);
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
   ctx.beginPath();
   ctx.arc(0, 0, radius, 0, Math.PI * 2);
   ctx.fill();
 
-  // Cross glare flare
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2.5 * scale;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = colorHex;
+  ctx.lineWidth = 4 * scale;
+  ctx.shadowColor = colorHex;
+  ctx.shadowBlur = 12 * scale;
   ctx.beginPath();
-  ctx.moveTo(-radius * 1.6, 0);
-  ctx.lineTo(radius * 1.6, 0);
-  ctx.moveTo(0, -radius * 1.6);
-  ctx.lineTo(0, radius * 1.6);
+  ctx.moveTo(-radius * 1.8, 0);
+  ctx.lineTo(radius * 1.8, 0);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.3 * scale;
+  ctx.shadowBlur = 4 * scale;
+  ctx.beginPath();
+  ctx.moveTo(-radius * 1.65, 0);
+  ctx.lineTo(radius * 1.65, 0);
   ctx.stroke();
 
   ctx.restore();
 }
 
-/**
- * 💰 Gold Chain with $ Pendant
- */
 function drawGoldChain(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.save();
-  const s = scale * 0.9;
+  const s = scale * 0.92;
 
-  // White Die-cut backing
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 10 * s;
+  // Chain with a dark under-stroke gives separation on any photo without a white halo.
+  ctx.strokeStyle = 'rgba(69, 26, 3, 0.72)';
+  ctx.lineWidth = 8 * s;
   ctx.beginPath();
-  ctx.arc(0, -10 * s, 32 * s, 0.1 * Math.PI, 0.9 * Math.PI);
+  ctx.arc(0, -10 * s, 33 * s, 0.1 * Math.PI, 0.9 * Math.PI);
   ctx.stroke();
 
-  ctx.shadowColor = 'transparent';
-  // Gold Chain Links
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 6 * s;
+  const goldStroke = ctx.createLinearGradient(-30 * s, -20 * s, 30 * s, 20 * s);
+  goldStroke.addColorStop(0, '#f59e0b');
+  goldStroke.addColorStop(0.45, '#fde047');
+  goldStroke.addColorStop(1, '#d97706');
+  ctx.strokeStyle = goldStroke;
+  ctx.lineWidth = 5 * s;
   ctx.beginPath();
-  ctx.arc(0, -10 * s, 32 * s, 0.1 * Math.PI, 0.9 * Math.PI);
+  ctx.arc(0, -10 * s, 33 * s, 0.1 * Math.PI, 0.9 * Math.PI);
   ctx.stroke();
 
-  // Gold Dollar Medallion
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(0, 30 * s, 22 * s, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#eab308';
-  ctx.strokeStyle = '#b45309';
+  clearShadow(ctx);
+  const medallion = ctx.createRadialGradient(-6 * s, 23 * s, 2 * s, 0, 30 * s, 22 * s);
+  medallion.addColorStop(0, '#fff7a8');
+  medallion.addColorStop(0.35, '#facc15');
+  medallion.addColorStop(1, '#d97706');
+  ctx.fillStyle = medallion;
+  ctx.strokeStyle = '#92400e';
   ctx.lineWidth = 2.5 * s;
   ctx.beginPath();
-  ctx.arc(0, 30 * s, 18 * s, 0, Math.PI * 2);
+  ctx.arc(0, 30 * s, 20 * s, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // Dollar Sign
-  ctx.fillStyle = '#78350f';
+  ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath();
+  ctx.arc(-3 * s, 27 * s, 13 * s, Math.PI * 1.08, Math.PI * 1.72);
+  ctx.stroke();
+
+  ctx.fillStyle = '#713f12';
   ctx.font = `900 ${22 * s}px "Anton", Impact, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -323,122 +330,106 @@ function drawGoldChain(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.restore();
 }
 
-/**
- * 👑 King Crown
- */
 function drawCrown(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.save();
-  const s = scale * 0.9;
+  const s = scale * 0.92;
 
-  // White die-cut outline
-  ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 8 * s;
-  ctx.beginPath();
-  ctx.moveTo(-32 * s, 20 * s);
-  ctx.lineTo(-40 * s, -14 * s);
-  ctx.lineTo(-18 * s, 0);
-  ctx.lineTo(0, -22 * s);
-  ctx.lineTo(18 * s, 0);
-  ctx.lineTo(40 * s, -14 * s);
-  ctx.lineTo(32 * s, 20 * s);
-  ctx.closePath();
-  ctx.stroke();
-  ctx.fill();
-
-  ctx.shadowColor = 'transparent';
-  // Gold Crown fill
-  ctx.fillStyle = '#fbbf24';
-  ctx.strokeStyle = '#d97706';
-  ctx.lineWidth = 2.5 * s;
-  ctx.beginPath();
-  ctx.moveTo(-30 * s, 18 * s);
-  ctx.lineTo(-38 * s, -12 * s);
-  ctx.lineTo(-16 * s, 0);
-  ctx.lineTo(0, -20 * s);
-  ctx.lineTo(16 * s, 0);
-  ctx.lineTo(38 * s, -12 * s);
-  ctx.lineTo(30 * s, 18 * s);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // Jewels on points
-  const jewelColors = ['#ef4444', '#3b82f6', '#10b981'];
-  [-38, 0, 38].forEach((x, i) => {
-    ctx.fillStyle = jewelColors[i];
+  ctx.strokeStyle = 'rgba(69, 26, 3, 0.82)';
+  ctx.lineWidth = 4 * s;
+  const crownPath = () => {
     ctx.beginPath();
-    ctx.arc(x * s, (i === 1 ? -20 : -12) * s, 3.5 * s, 0, Math.PI * 2);
+    ctx.moveTo(-31 * s, 19 * s);
+    ctx.lineTo(-39 * s, -13 * s);
+    ctx.lineTo(-17 * s, 0);
+    ctx.lineTo(0, -22 * s);
+    ctx.lineTo(17 * s, 0);
+    ctx.lineTo(39 * s, -13 * s);
+    ctx.lineTo(31 * s, 19 * s);
+    ctx.closePath();
+  };
+  crownPath();
+  ctx.stroke();
+
+  const gold = ctx.createLinearGradient(0, -22 * s, 0, 21 * s);
+  gold.addColorStop(0, '#fff176');
+  gold.addColorStop(0.45, '#fbbf24');
+  gold.addColorStop(1, '#d97706');
+  ctx.fillStyle = gold;
+  crownPath();
+  ctx.fill();
+
+  clearShadow(ctx);
+  const jewels = [
+    { x: -37, y: -11, color: '#fb7185' },
+    { x: 0, y: -20, color: '#60a5fa' },
+    { x: 37, y: -11, color: '#34d399' },
+  ];
+  jewels.forEach(({ x, y, color }) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x * s, y * s, 3.7 * s, 0, Math.PI * 2);
     ctx.fill();
   });
 
   ctx.restore();
 }
 
-/**
- * 🚬 Thug Lit Joint
- */
 function drawJoint(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.save();
-  const s = scale * 0.85;
+  const s = scale * 0.86;
 
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(-26 * s, -8 * s, 54 * s, 16 * s);
-
-  ctx.shadowColor = 'transparent';
-  ctx.fillStyle = '#e2e8f0';
-  ctx.strokeStyle = '#64748b';
+  const paper = ctx.createLinearGradient(-22 * s, 0, 22 * s, 0);
+  paper.addColorStop(0, '#f8fafc');
+  paper.addColorStop(0.7, '#e2e8f0');
+  paper.addColorStop(1, '#cbd5e1');
+  ctx.fillStyle = paper;
+  ctx.strokeStyle = 'rgba(51,65,85,0.8)';
   ctx.lineWidth = 1.5 * s;
-  ctx.fillRect(-22 * s, -5 * s, 44 * s, 10 * s);
-  ctx.strokeRect(-22 * s, -5 * s, 44 * s, 10 * s);
+  withRoundedRect(ctx, -24 * s, -5 * s, 48 * s, 10 * s, 4 * s);
+  ctx.fill();
+  ctx.stroke();
 
-  // Lit burning tip
-  ctx.fillStyle = '#ef4444';
-  ctx.fillRect(22 * s, -5 * s, 6 * s, 10 * s);
-
-  // Smoke Puff
-  ctx.fillStyle = 'rgba(203, 213, 225, 0.7)';
+  clearShadow(ctx);
+  ctx.fillStyle = '#7c2d12';
+  withRoundedRect(ctx, 18 * s, -5 * s, 7 * s, 10 * s, 2 * s);
+  ctx.fill();
+  ctx.fillStyle = '#fb923c';
   ctx.beginPath();
-  ctx.arc(36 * s, -10 * s, 8 * s, 0, Math.PI * 2);
-  ctx.arc(44 * s, -16 * s, 10 * s, 0, Math.PI * 2);
+  ctx.arc(25 * s, 0, 4 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(226,232,240,0.55)';
+  ctx.beginPath();
+  ctx.arc(34 * s, -10 * s, 7 * s, 0, Math.PI * 2);
+  ctx.arc(42 * s, -17 * s, 9 * s, 0, Math.PI * 2);
+  ctx.arc(51 * s, -24 * s, 7 * s, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();
 }
 
-/**
- * 🏷️ Stamps (APPROVED, TOP SECRET, 100% REAL)
- */
 function drawStamp(ctx: CanvasRenderingContext2D, scale: number, text: string, id: string) {
   ctx.save();
   const s = scale * 0.9;
   const isApproved = id.includes('approved') || id.includes('w');
-  const stampColor = isApproved ? '#10b981' : '#ef4444';
+  const color = isApproved ? '#10b981' : '#ef4444';
 
-  // White Die-cut backing plate
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath();
-  if (typeof (ctx as any).roundRect === 'function') {
-    (ctx as any).roundRect(-60 * s, -26 * s, 120 * s, 52 * s, 8 * s);
-  } else {
-    ctx.rect(-60 * s, -26 * s, 120 * s, 52 * s);
-  }
-  ctx.fill();
-
-  ctx.shadowColor = 'transparent';
-  // Stamp Border
-  ctx.strokeStyle = stampColor;
-  ctx.lineWidth = 3.5 * s;
-  ctx.beginPath();
-  if (typeof (ctx as any).roundRect === 'function') {
-    (ctx as any).roundRect(-54 * s, -20 * s, 108 * s, 40 * s, 6 * s);
-  } else {
-    ctx.rect(-54 * s, -20 * s, 108 * s, 40 * s);
-  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth = 6 * s;
+  withRoundedRect(ctx, -56 * s, -22 * s, 112 * s, 44 * s, 8 * s);
   ctx.stroke();
 
-  // Stamp Text
-  ctx.fillStyle = stampColor;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3.5 * s;
+  withRoundedRect(ctx, -54 * s, -20 * s, 108 * s, 40 * s, 7 * s);
+  ctx.stroke();
+
+  clearShadow(ctx);
+  ctx.fillStyle = `${color}22`;
+  withRoundedRect(ctx, -53 * s, -19 * s, 106 * s, 38 * s, 6 * s);
+  ctx.fill();
+
+  ctx.fillStyle = color;
   ctx.font = `900 ${16 * s}px "Anton", Impact, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -447,9 +438,6 @@ function drawStamp(ctx: CanvasRenderingContext2D, scale: number, text: string, i
   ctx.restore();
 }
 
-/**
- * 🏷️ Badge Plates (BRUH, БАЗА, КРИНЖ, CENSORED)
- */
 function drawBadgePlate(ctx: CanvasRenderingContext2D, scale: number, text: string, id: string) {
   ctx.save();
   const s = scale * 0.9;
@@ -457,40 +445,32 @@ function drawBadgePlate(ctx: CanvasRenderingContext2D, scale: number, text: stri
   let bgColor = '#e11d48';
   if (id.includes('base')) bgColor = '#059669';
   if (id.includes('cringe')) bgColor = '#9333ea';
-  if (id.includes('censored')) bgColor = '#000000';
+  if (id.includes('censored')) bgColor = '#09090b';
   if (id.includes('scam')) bgColor = '#d97706';
   if (id.includes('press-f')) bgColor = '#2563eb';
 
   const fontSize = Math.round(20 * s);
   ctx.font = `900 ${fontSize}px "Anton", Impact, "Arial Black", sans-serif`;
   const textWidth = ctx.measureText(text).width;
-  const padX = 14 * s;
-  const bw = Math.max(70 * s, textWidth + padX * 2);
+  const bw = Math.max(70 * s, textWidth + 28 * s);
   const bh = 34 * s;
 
-  // White Die-cut vinyl contour
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath();
-  if (typeof (ctx as any).roundRect === 'function') {
-    (ctx as any).roundRect(-bw / 2 - 4 * s, -bh / 2 - 4 * s, bw + 8 * s, bh + 8 * s, 10 * s);
-  } else {
-    ctx.rect(-bw / 2 - 4 * s, -bh / 2 - 4 * s, bw + 8 * s, bh + 8 * s);
-  }
+  const plate = ctx.createLinearGradient(0, -bh / 2, 0, bh / 2);
+  plate.addColorStop(0, bgColor);
+  plate.addColorStop(1, `${bgColor}cc`);
+  ctx.fillStyle = plate;
+  ctx.strokeStyle = 'rgba(0,0,0,0.58)';
+  ctx.lineWidth = 2.5 * s;
+  withRoundedRect(ctx, -bw / 2, -bh / 2, bw, bh, 8 * s);
+  ctx.fill();
+  ctx.stroke();
+
+  clearShadow(ctx);
+  ctx.fillStyle = 'rgba(255,255,255,0.17)';
+  withRoundedRect(ctx, -bw / 2 + 4 * s, -bh / 2 + 3 * s, bw - 8 * s, 7 * s, 4 * s);
   ctx.fill();
 
-  ctx.shadowColor = 'transparent';
-  // Badge Fill
-  ctx.fillStyle = bgColor;
-  ctx.beginPath();
-  if (typeof (ctx as any).roundRect === 'function') {
-    (ctx as any).roundRect(-bw / 2, -bh / 2, bw, bh, 7 * s);
-  } else {
-    ctx.rect(-bw / 2, -bh / 2, bw, bh);
-  }
-  ctx.fill();
-
-  // White Text
-  ctx.fillStyle = '#FFFFFF';
+  ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 0, 1 * s);
@@ -498,40 +478,30 @@ function drawBadgePlate(ctx: CanvasRenderingContext2D, scale: number, text: stri
   ctx.restore();
 }
 
-/**
- * 🐸 Character Meme Stickers (Pepe, Doge, Chad, Shrek, etc.)
- */
-function drawCharacterStickerArt(ctx: CanvasRenderingContext2D, scale: number, emoji: string, label: string) {
-  drawEmojiDieCut(ctx, scale, emoji);
+function drawCharacterStickerArt(ctx: CanvasRenderingContext2D, scale: number, emoji: string) {
+  drawEmojiSticker(ctx, scale * 1.08, emoji);
 }
 
-/**
- * ⭐ Authentic Die-Cut Vinyl Sticker with White Contour & Drop Shadow for Emojis
- */
-function drawEmojiDieCut(ctx: CanvasRenderingContext2D, scale: number, emoji: string) {
+function drawEmojiSticker(ctx: CanvasRenderingContext2D, scale: number, emoji: string) {
   ctx.save();
-  const s = scale * 0.95;
-  const badgeRadius = 30 * s;
+  const s = scale * 0.98;
+  const emojiSize = Math.round(52 * s);
 
-  // 1. Thick White Die-Cut Circular/Silhouette Vinyl Contour
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath();
-  ctx.arc(0, 0, badgeRadius, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Subtle inner glossy border
-  ctx.shadowColor = 'transparent';
-  ctx.strokeStyle = '#f1f5f9';
-  ctx.lineWidth = 1.5 * s;
-  ctx.beginPath();
-  ctx.arc(0, 0, badgeRadius - 2 * s, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // 2. High-res Crisp Emoji Glyph Centered
-  const emojiSize = Math.round(40 * s);
+  // The previous renderer put every emoji inside a white vinyl disc. That made
+  // stickers look like UI buttons pasted onto the meme. Render the native color
+  // glyph directly and use only a soft photographic shadow for separation.
   ctx.font = `${emojiSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.58)';
+  ctx.shadowBlur = 7 * s;
+  ctx.shadowOffsetX = 2 * s;
+  ctx.shadowOffsetY = 4 * s;
+  ctx.fillText(emoji, 0, 2 * s);
+
+  // A tiny crisp second pass keeps color emojis from looking muddy after shadowing.
+  clearShadow(ctx);
+  ctx.globalAlpha = 0.98;
   ctx.fillText(emoji, 0, 2 * s);
 
   ctx.restore();
