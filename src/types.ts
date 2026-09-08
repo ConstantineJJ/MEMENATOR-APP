@@ -1,0 +1,172 @@
+export interface MemeTemplate {
+  id: string;
+  name: string;
+  url: string;
+  category: 'classic' | 'trending' | 'reactions' | 'animals' | 'gaming';
+  defaultTopText?: string;
+  defaultBottomText?: string;
+  tags: string[];
+}
+
+export interface TrendingWebMeme {
+  id: string;
+  name: string;
+  url: string;
+  trendReason: string;
+  source: string;
+  defaultTopText?: string;
+  defaultBottomText?: string;
+  tags: string[];
+}
+
+export type MemeProvider = 'reddit' | 'imgflip' | 'meme_api' | 'imgur' | 'curated';
+
+export interface WebMemeItem {
+  id: string;
+  provider: MemeProvider;
+  sourceId: string;
+  title: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  sourcePage?: string;
+  author?: string;
+  createdAt?: number;
+  nsfw?: boolean;
+  hash: string;
+  tags?: string[];
+  defaultTopText?: string;
+  defaultBottomText?: string;
+}
+
+export interface SavedMemeState {
+  id: string;
+  title: string;
+  thumbnailUrl: string;
+  imageSrc: string;
+  textBoxes: TextBox[];
+  stickers: MemeSticker[];
+  filter: MemeFilter;
+  watermark: boolean;
+  timestamp: number;
+  isFavorite?: boolean;
+  templateId?: string | null;
+}
+
+export interface FavoriteWebTemplate {
+  id: string;
+  name: string;
+  url: string;
+  thumbnailUrl: string;
+  source: string;
+  provider: string;
+  defaultTopText?: string;
+  defaultBottomText?: string;
+  addedAt: number;
+}
+
+export interface CaptionSuggestion {
+  headline: string;
+  topText: string;
+  bottomText: string;
+  style: string;
+  explanation: string;
+  visualContradiction?: string;
+  spottedDetail?: string;
+  detectedMood?: string;
+  humorMechanic?: string;
+  imageConnection?: string;
+}
+
+export interface TextBox {
+  id: string;
+  text: string;
+  x: number; // percentage (0 - 100) or pixels
+  y: number; // percentage (0 - 100)
+  fontSize: number; // in pt/px relative to standard 600px width
+  fontFamily: string;
+  color: string;
+  strokeColor: string;
+  strokeWidth: number;
+  isUppercase: boolean;
+  isBold: boolean;
+  textAlign: 'left' | 'center' | 'right';
+  shadow: boolean;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  hasBackground: boolean;
+  bgColor?: string;
+}
+
+export interface MemeSticker {
+  id: string;
+  label: string;
+  emoji?: string;
+  type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'custom' | 'badge';
+  x: number; // percentage (0 - 100)
+  y: number; // percentage (0 - 100)
+  scale: number;
+  rotation: number;
+}
+
+export type MemeFilter =
+  | 'none'
+  | 'deepfry'
+  | 'vintage'
+  | 'grayscale'
+  | 'contrast'
+  | 'warm'
+  | 'dramatic'
+  | 'vignette';
+
+export interface FocalSubject {
+  name: string;
+  box: { x: number; y: number; width: number; height: number }; // percentages 0-100
+  role: 'primary' | 'secondary' | 'background';
+  gazeDirection?: 'left' | 'right' | 'direct' | 'up' | 'down' | 'none';
+  description: string;
+}
+
+export interface TextSafeZone {
+  area: 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center-left' | 'center-right';
+  box: { x: number; y: number; width: number; height: number }; // percentages 0-100
+  recommendedTopY?: number;
+  recommendedBottomY?: number;
+  contrastQuality: 'excellent' | 'good' | 'medium';
+  bgLuminance: 'dark' | 'light' | 'mixed';
+  recommendedTextColor: string;
+  recommendedStrokeColor: string;
+  reason: string;
+}
+
+export interface CompositionMetrics {
+  visualBalance: number; // 0-100
+  negativeSpace: number; // 0-100
+  contrastReadability: number; // 0-100
+  comedicFocus: number; // 0-100
+}
+
+export interface SuggestedTextPlacements {
+  topTextY: number; // percentage 0-100
+  bottomTextY: number; // percentage 0-100
+  align: 'center' | 'left' | 'right';
+  suggestedFontSize: number;
+  fontRecommendation: string;
+  reason: string;
+}
+
+export interface CompositionAnalysis {
+  overallScore: number; // 0-100
+  balanceAssessment: string;
+  ruleOfThirdsAlignment: 'strong' | 'moderate' | 'centered';
+  detectedStyle: string;
+  metrics: CompositionMetrics;
+  focalSubjects: FocalSubject[];
+  safeZones: TextSafeZone[];
+  recommendations: string[];
+  suggestedTextPlacements: SuggestedTextPlacements;
+  isFallback?: boolean;
+}
+
+export type CompositionGuideType = 'none' | 'thirds' | 'golden' | 'focal' | 'zones';

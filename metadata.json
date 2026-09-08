@@ -1,0 +1,6 @@
+{
+  "name": "Memenator",
+  "description": "Memenator — умный генератор мемов с трендовыми онлайн-шаблонами, интеллектуальным анализом композиции кадра через Gemini, интерактивными сетками (правило третей, золотое сечение, безопасные зоны), обрезкой холста и богатой коллекцией стикеров.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
