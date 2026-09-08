@@ -5,6 +5,12 @@ export interface ImagePayload {
   height: number;
 }
 
+export interface WorkingImageSize {
+  width: number;
+  height: number;
+  resized: boolean;
+}
+
 export const MOBILE_WORKING_IMAGE_MAX_DIMENSION = 3072;
 export const DESKTOP_WORKING_IMAGE_MAX_DIMENSION = 4096;
 
@@ -17,6 +23,28 @@ export function getWorkingImageDimensionLimit(): number {
   return constrainedDevice
     ? MOBILE_WORKING_IMAGE_MAX_DIMENSION
     : DESKTOP_WORKING_IMAGE_MAX_DIMENSION;
+}
+
+export function calculateWorkingImageSize(
+  sourceWidth: number,
+  sourceHeight: number,
+  maxDimension: number
+): WorkingImageSize {
+  const safeWidth = Math.max(1, Math.round(sourceWidth));
+  const safeHeight = Math.max(1, Math.round(sourceHeight));
+  const safeMax = Math.max(1, Math.round(maxDimension));
+  const longestSide = Math.max(safeWidth, safeHeight);
+
+  if (longestSide <= safeMax) {
+    return { width: safeWidth, height: safeHeight, resized: false };
+  }
+
+  const scale = safeMax / longestSide;
+  return {
+    width: Math.max(1, Math.round(safeWidth * scale)),
+    height: Math.max(1, Math.round(safeHeight * scale)),
+    resized: true,
+  };
 }
 
 function getMimeTypeFromDataUrl(dataUrl: string): string {
@@ -73,26 +101,21 @@ export async function normalizeImageFileForWorkingCanvas(
   let bitmap: ImageBitmap | null = null;
   try {
     bitmap = await createImageBitmap(file);
-    const sourceWidth = bitmap.width;
-    const sourceHeight = bitmap.height;
-    const longestSide = Math.max(sourceWidth, sourceHeight);
+    const target = calculateWorkingImageSize(bitmap.width, bitmap.height, maxDimension);
 
-    if (longestSide <= maxDimension) {
+    if (!target.resized) {
       return file;
     }
 
-    const scale = maxDimension / longestSide;
-    const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
-    const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
     const canvas = document.createElement('canvas');
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
+    canvas.width = target.width;
+    canvas.height = target.height;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return file;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+    ctx.drawImage(bitmap, 0, 0, target.width, target.height);
 
     const outputType = file.type === 'image/png'
       ? 'image/png'
