@@ -24,11 +24,7 @@
     "noEmit": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
-    "strictBindCallApply": true,
-    "strictFunctionTypes": true,
-    "noImplicitThis": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
+    "strict": true,
     "noUncheckedSideEffectImports": true
   }
 }
