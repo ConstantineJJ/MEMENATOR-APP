@@ -3,6 +3,8 @@ import { CheckCircle } from 'lucide-react';
 import { CompositionAnalysisModal } from './components/CompositionAnalysisModal';
 import { CropZoomModal } from './components/CropZoomModal';
 import { HistoryAndFavoritesPanel } from './components/HistoryAndFavoritesPanel';
+import { ImageGenerationModal } from './components/ImageGenerationModal';
+import { ImageGenerationPanel } from './components/ImageGenerationPanel';
 import { ImageUploadBar } from './components/ImageUploadBar';
 import { MagicCaptionModal } from './components/MagicCaptionModal';
 import { MemeCanvas } from './components/MemeCanvas';
@@ -11,8 +13,10 @@ import { MemeTextStyleBar } from './components/MemeTextStyleBar';
 import { RandomMemesPanel } from './components/RandomMemesPanel';
 import { SuggestedMemesPanel } from './components/SuggestedMemesPanel';
 import { WatermelonLogo } from './components/WatermelonLogo';
+import { AI_STYLES, getAiStyle } from './data/aiStyles';
 import { TRENDING_TEMPLATES } from './data/templates';
 import { useCompositionAnalysis } from './hooks/useCompositionAnalysis';
+import { useImageGeneration } from './hooks/useImageGeneration';
 import { useMagicCaptions } from './hooks/useMagicCaptions';
 import {
   MemeDraftSnapshot,
@@ -94,8 +98,16 @@ export default function App() {
   const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
   const [isCropOpen, setIsCropOpen] = useState(false);
   const [isCompositionModalOpen, setIsCompositionModalOpen] = useState(false);
+  const [isImageGenModalOpen, setIsImageGenModalOpen] = useState(false);
   const [guideType, setGuideType] = useState<CompositionGuideType>('none');
   const [notification, setNotification] = useState<string | null>(null);
+
+  const {
+    isGenerating: isGeneratingImage,
+    history: generatedImagesHistory,
+    generateImage,
+    deleteGeneratedImage,
+  } = useImageGeneration();
 
   const showToast = useCallback((message: string) => {
     setNotification(message);
@@ -275,6 +287,59 @@ export default function App() {
     showToast('Исходное фото восстановлено!');
   }, [originalImageSrc, showToast]);
 
+  const handleApplyGeneratedImage = useCallback(
+    (imageUrl: string, promptText?: string) => {
+      startNewMeme();
+      setActiveImageSrc(imageUrl);
+      setOriginalImageSrc(imageUrl);
+      setSelectedTemplateId(null);
+      clearCaptions();
+
+      pushToHistory({
+        textBoxes,
+        stickers,
+        filter,
+        filterIntensity,
+        watermark,
+        activeImageSrc: imageUrl,
+      });
+
+      showToast(
+        promptText
+          ? `Сгенерированный визуал на холсте: "${promptText.slice(0, 32)}..."`
+          : 'Сгенерированный визуал на холсте!'
+      );
+    },
+    [clearCaptions, filter, filterIntensity, pushToHistory, showToast, startNewMeme, stickers, textBoxes, watermark]
+  );
+
+  const handleGenerateImageFromCaption = useCallback(
+    async (caption: CaptionSuggestion) => {
+      const fullText = [caption.topText, caption.bottomText].filter(Boolean).join(' — ');
+      const styleName = getAiStyle(selectedStyle)?.label || 'интернет-юмор';
+      const promptText = `Комедийная мем-сцена выражающая смысл: "${fullText}". Стиль: ${styleName}, выразительная мимика, читаемая композиция`;
+      showToast('Запущена генерация мем-картинки по выбранной фразе...');
+      const result = await generateImage({ prompt: promptText, aspectRatio: '1:1' });
+      if (result) {
+        showToast('Мем-картинка готова! Она доступна в галерее генератора слева.');
+      }
+    },
+    [generateImage, selectedStyle, showToast]
+  );
+
+  const handleGenerateImageFromStyle = useCallback(
+    async (styleId: string) => {
+      const styleName = getAiStyle(styleId)?.label || 'трендовый юмор';
+      const promptText = `Вирусная мем-сцена в стиле юмора "${styleName}", выразительный персонаж в комичной ситуации, высокое качество`;
+      showToast(`Генерация мем-картинки в стиле «${getAiStyle(styleId)?.compactLabel || 'Тренды'}»...`);
+      const result = await generateImage({ prompt: promptText, aspectRatio: '1:1' });
+      if (result) {
+        showToast('Мем-картинка готова! Она доступна в галерее генератора слева.');
+      }
+    },
+    [generateImage, showToast]
+  );
+
   const handleApplyCompositionOptimization = useCallback(() => {
     if (!compositionAnalysis?.suggestedTextPlacements) return;
     const { topTextY, bottomTextY, align, suggestedFontSize } = compositionAnalysis.suggestedTextPlacements;
@@ -419,8 +484,22 @@ export default function App() {
             />
           </div>
 
-          {/* Deliberately reserved for a future high-value feature. */}
-          <div className="h-[40%] min-h-0 flex-1" aria-label="Reserved workspace area" />
+          {/* Image generation section */}
+          <div className="h-[40%] min-h-0 flex-1 flex flex-col overflow-hidden">
+            <ImageGenerationPanel
+              onApplyImageToCanvas={handleApplyGeneratedImage}
+              activeImageSrc={activeImageSrc}
+              textBoxes={textBoxes}
+              captions={captions}
+              selectedStyle={selectedStyle}
+              onShowToast={showToast}
+              onOpenModal={() => setIsImageGenModalOpen(true)}
+              generateImage={generateImage}
+              isGenerating={isGeneratingImage}
+              history={generatedImagesHistory}
+              onDeleteHistoryItem={deleteGeneratedImage}
+            />
+          </div>
         </aside>
 
         <section className="col-span-12 lg:col-span-6 h-full min-h-0 flex flex-col items-center justify-between gap-1.5 overflow-hidden">
@@ -499,6 +578,8 @@ export default function App() {
             customContext={customContext}
             onCustomContextChange={setCustomContext}
             onOpenFullModal={() => setIsMagicModalOpen(true)}
+            onGenerateImageFromCaption={handleGenerateImageFromCaption}
+            onGenerateImageFromStyle={handleGenerateImageFromStyle}
           />
         </aside>
       </main>
@@ -535,6 +616,21 @@ export default function App() {
         onApplyOptimization={handleApplyCompositionOptimization}
         guideType={guideType}
         onSetGuideType={setGuideType}
+      />
+
+      <ImageGenerationModal
+        isOpen={isImageGenModalOpen}
+        onClose={() => setIsImageGenModalOpen(false)}
+        onApplyImageToCanvas={handleApplyGeneratedImage}
+        activeImageSrc={activeImageSrc}
+        textBoxes={textBoxes}
+        captions={captions}
+        selectedStyle={selectedStyle}
+        onShowToast={showToast}
+        generateImage={generateImage}
+        isGenerating={isGeneratingImage}
+        history={generatedImagesHistory}
+        onDeleteHistoryItem={deleteGeneratedImage}
       />
     </div>
   );

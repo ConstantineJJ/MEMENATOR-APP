@@ -91,17 +91,23 @@ export function registerTemplateImageRoute(app: Express) {
             ],
           };
 
-      const models = ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image'];
+      const models = ['gemini-3.1-flash-image-preview', 'gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image'];
       for (const modelName of models) {
         try {
+          const isLite = modelName.includes('lite');
+          const imageConfig: Record<string, unknown> = {
+            aspectRatio: aspectRatio as never,
+          };
+          if (!isLite) {
+            imageConfig.imageSize = '1K';
+          }
+
           const response = await callWithRetry(
             () => ai.models.generateContent({
               model: modelName,
               contents,
               config: {
-                imageConfig: modelName.includes('lite')
-                  ? { aspectRatio: aspectRatio as never }
-                  : { aspectRatio: aspectRatio as never, imageSize: '1K' },
+                imageConfig,
               },
             }),
             1,

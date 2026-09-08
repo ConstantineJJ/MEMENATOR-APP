@@ -196,3 +196,14 @@ export interface CompositionAnalysis {
 }
 
 export type CompositionGuideType = 'none' | 'thirds' | 'golden' | 'focal' | 'zones';
+
+export interface GeneratedMemeImage {
+  id: string;
+  imageUrl: string;
+  prompt: string;
+  aspectRatio: '1:1' | '16:9' | '9:16' | '4:3';
+  createdAt: number;
+  modelUsed?: string;
+  isFallback?: boolean;
+  sourceMode?: 'create' | 'edit';
+}
