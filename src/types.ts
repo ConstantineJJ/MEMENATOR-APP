@@ -87,6 +87,7 @@ export interface TextBox {
   color: string;
   strokeColor: string;
   strokeWidth: number;
+  strokeType?: 'outer' | 'inner' | 'none';
   isUppercase: boolean;
   isBold: boolean;
   textAlign: 'left' | 'center' | 'right';
@@ -103,7 +104,8 @@ export interface MemeSticker {
   id: string;
   label: string;
   emoji?: string;
-  type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'custom' | 'badge';
+  stickerId?: string;
+  type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'custom' | 'badge' | 'sticker-art' | 'stamp';
   x: number; // percentage (0 - 100)
   y: number; // percentage (0 - 100)
   scale: number;
@@ -113,11 +115,15 @@ export interface MemeSticker {
 export type MemeFilter =
   | 'none'
   | 'deepfry'
+  | 'vhs'
   | 'vintage'
   | 'grayscale'
   | 'contrast'
   | 'warm'
   | 'dramatic'
+  | 'cyberpunk'
+  | 'vivid'
+  | 'toxic'
   | 'vignette';
 
 export interface FocalSubject {

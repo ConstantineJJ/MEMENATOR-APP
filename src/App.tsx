@@ -2,14 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MemeCanvas } from './components/MemeCanvas';
 import { MagicCaptionModal } from './components/MagicCaptionModal';
 import { CropZoomModal } from './components/CropZoomModal';
-import { MemeFeedPanel } from './components/MemeFeedPanel';
-import { TemplateSelector } from './components/TemplateSelector';
+import { RandomMemesPanel } from './components/RandomMemesPanel';
+import { HistoryAndFavoritesPanel } from './components/HistoryAndFavoritesPanel';
 import { MemeTextInputBar } from './components/MemeTextInputBar';
 import { MemeTextStyleBar } from './components/MemeTextStyleBar';
 import { StickersAndFilters } from './components/StickersAndFilters';
 import { ImageUploadBar } from './components/ImageUploadBar';
 import { SuggestedMemesPanel } from './components/SuggestedMemesPanel';
 import { CompositionAnalysisModal } from './components/CompositionAnalysisModal';
+import { WatermelonLogo } from './components/WatermelonLogo';
 import { TRENDING_TEMPLATES } from './data/templates';
 import {
   TextBox,
@@ -122,7 +123,6 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
 
   // Single-screen Sidebar Tabs state
-  const [leftTab, setLeftTab] = useState<'all' | 'templates' | 'trending' | 'stickers'>('all');
   const [rightTab, setRightTab] = useState<'all' | 'text' | 'suggestions'>('all');
 
   // Active Meme Reference in History (to prevent duplicate history entries while actively editing)
@@ -683,22 +683,24 @@ export default function App() {
 
   // Sticker Management
   const handleAddSticker = (
-    type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'badge',
+    type: any,
     label: string,
-    emoji?: string
+    emoji?: string,
+    stickerId?: string
   ) => {
     const newSticker: MemeSticker = {
       id: `sticker-${Date.now()}`,
       label,
       emoji,
       type,
+      stickerId: stickerId || type,
       x: 50,
       y: 45,
       scale: 1,
       rotation: 0,
     };
     setStickrs((prev) => [...prev, newSticker]);
-    showToast(`Добавлен стикер: ${label}`);
+    showToast(`Наклейка добавлена: ${label}`);
   };
 
   const handleUpdateStickerPosition = (id: string, x: number, y: number) => {
@@ -714,34 +716,28 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen max-h-screen w-screen bg-neutral-950 text-neutral-100 flex flex-col overflow-hidden antialiased selection:bg-amber-400 selection:text-neutral-950">
+    <div className="h-screen max-h-screen w-screen bg-neutral-950 text-neutral-100 flex flex-col overflow-hidden antialiased selection:bg-rose-500 selection:text-white">
       {/* Toast Notification */}
       {notification && (
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-neutral-900/95 border border-amber-500/40 text-neutral-100 text-xs font-semibold px-4 py-1.5 rounded-full shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2">
-          <CheckCircle className="w-3.5 h-3.5 text-amber-400" />
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-neutral-900/95 border border-rose-500/40 text-neutral-100 text-xs font-semibold px-4 py-1.5 rounded-full shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2">
+          <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
           <span>{notification}</span>
         </div>
       )}
 
-      {/* Studio Header with MEMENATOR branding */}
+      {/* Studio Header with MEMENATOR branding & Watermelon Mascot */}
       <header className="h-14 sm:h-16 border-b border-neutral-800/80 bg-neutral-950/95 backdrop-blur px-3 sm:px-5 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-3">
-          {/* Custom Meme Logo Badge */}
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-rose-500 p-0.5 shadow-lg shadow-orange-500/25 shrink-0">
-            <div className="w-full h-full bg-neutral-950 rounded-[14px] flex items-center justify-center backdrop-blur">
-              <span className="text-xl select-none filter drop-shadow">😎</span>
-            </div>
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-            </span>
+          {/* Custom Watermelon Meme Mascot Logo */}
+          <div className="relative flex items-center justify-center shrink-0">
+            <WatermelonLogo size={42} />
           </div>
 
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl sm:text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-yellow-200 uppercase leading-none font-['Anton',sans-serif]">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-rose-500 via-emerald-400 to-amber-300 uppercase leading-none font-['Anton',sans-serif]">
               MEMENATOR
             </h1>
-            <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-amber-400/15 text-amber-400 border border-amber-400/30 uppercase tracking-widest hidden sm:inline-block shadow-sm">
+            <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/30 uppercase tracking-widest hidden sm:inline-block shadow-sm">
               STUDIO
             </span>
           </div>
@@ -763,89 +759,40 @@ export default function App() {
 
       {/* Main Workspace Layout - strictly single screen fitting viewport without vertical page scroll */}
       <main className="flex-1 min-h-0 w-full px-2 sm:px-3 py-2 grid grid-cols-12 gap-2 sm:gap-2.5 items-stretch overflow-hidden">
-        {/* COLUMN 1 (LEFT SIDEBAR): Template Catalog, Trending Web Templates Live, Stickers & Filters */}
-        <aside className="col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col gap-2 overflow-y-auto pr-0.5 custom-scrollbar">
-          {/* Top Quick Tab switcher for Left Panel */}
-          <div className="flex items-center gap-1 p-1 bg-neutral-900/90 border border-neutral-800 rounded-2xl shrink-0">
-            <button
-              onClick={() => setLeftTab('all')}
-              className={`flex-1 py-1 text-[11px] font-bold rounded-xl transition cursor-pointer ${
-                leftTab === 'all'
-                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              Все
-            </button>
-            <button
-              onClick={() => setLeftTab('templates')}
-              className={`flex-1 py-1 text-[11px] font-bold rounded-xl transition cursor-pointer ${
-                leftTab === 'templates'
-                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              🖼️ Шаблоны
-            </button>
-            <button
-              onClick={() => setLeftTab('trending')}
-              className={`flex-1 py-1 text-[11px] font-bold rounded-xl transition cursor-pointer ${
-                leftTab === 'trending'
-                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              📰 Лента
-            </button>
-            <button
-              onClick={() => setLeftTab('stickers')}
-              className={`flex-1 py-1 text-[11px] font-bold rounded-xl transition cursor-pointer ${
-                leftTab === 'stickers'
-                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              🎨 Стикеры
-            </button>
+        {/* COLUMN 1 (LEFT SIDEBAR): 3 Dedicated Blocks (40% Random Memes / 20% History & Favs / 40% Stickers & Filters) */}
+        <aside className="col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col gap-2 overflow-hidden pr-0.5">
+          {/* Block 1 (Top 40%): Случайные Мемы (6 мемов с поиском и костью) */}
+          <div className="h-[40%] min-h-0 flex flex-col shrink-0">
+            <RandomMemesPanel
+              onSelectWebTemplate={handleSelectWebTemplate}
+              selectedUrl={activeImageSrc}
+              onShowToast={showToast}
+              historyRefreshTrigger={historyRefreshTrigger}
+            />
           </div>
 
-          {/* Block 1: Template Catalog */}
-          {(leftTab === 'all' || leftTab === 'templates') && (
-            <div className="w-full shrink-0">
-              <TemplateSelector
-                selectedTemplateId={selectedTemplateId}
-                onSelectTemplate={handleSelectTemplate}
-              />
-            </div>
-          )}
+          {/* Block 2 (Middle 20%): История и Избранное (3 последних мема) */}
+          <div className="h-[20%] min-h-0 flex flex-col shrink-0">
+            <HistoryAndFavoritesPanel
+              onRestoreMeme={handleRestoreMeme}
+              onSelectWebTemplate={handleSelectWebTemplate}
+              onShowToast={showToast}
+              historyRefreshTrigger={historyRefreshTrigger}
+            />
+          </div>
 
-          {/* Block 2: Universal Feed Panel (History / From Web / Favorites) */}
-          {(leftTab === 'all' || leftTab === 'trending') && (
-            <div className="w-full shrink-0">
-              <MemeFeedPanel
-                onRestoreMeme={handleRestoreMeme}
-                onSelectWebTemplate={handleSelectWebTemplate}
-                selectedUrl={activeImageSrc}
-                onShowToast={showToast}
-                historyRefreshTrigger={historyRefreshTrigger}
-              />
-            </div>
-          )}
-
-          {/* Block 3: Stickers & Filters (Moved to the bottom as requested!) */}
-          {(leftTab === 'all' || leftTab === 'stickers') && (
-            <div className="w-full flex-1 min-h-0 flex flex-col">
-              <StickersAndFilters
-                filter={filter}
-                onSelectFilter={setFilter}
-                stickers={stickers}
-                onAddSticker={handleAddSticker}
-                onClearStickers={() => setStickrs([])}
-                watermark={watermark}
-                onToggleWatermark={setWatermark}
-              />
-            </div>
-          )}
+          {/* Block 3 (Bottom 40%): Фильтры и Наклейки */}
+          <div className="h-[40%] min-h-0 flex flex-col flex-1">
+            <StickersAndFilters
+              filter={filter}
+              onSelectFilter={setFilter}
+              stickers={stickers}
+              onAddSticker={handleAddSticker}
+              onClearStickers={() => setStickrs([])}
+              watermark={watermark}
+              onToggleWatermark={setWatermark}
+            />
+          </div>
         </aside>
 
         {/* COLUMN 2 (CENTER CANVAS - ЦЕНТР): Upload Bar, Text Input Bar (Pink), Canvas, Text Style Bar (Green) */}

@@ -1,4 +1,15 @@
 import { TextBox, MemeSticker, MemeFilter } from '../types';
+import { renderStickerOnCanvas } from './stickerRenderer';
+
+export interface TextBoxBoundsInfo {
+  width: number;
+  height: number;
+  lines: string[];
+  lineHeight: number;
+  totalBlockHeight: number;
+  maxLineWidth: number;
+  canvasScale: number;
+}
 
 export function wrapText(
   ctx: CanvasRenderingContext2D,
@@ -34,6 +45,59 @@ export function wrapText(
   return lines;
 }
 
+/**
+ * Accurately measures the bounding dimensions of a multi-line text box
+ */
+export function measureTextBoxBounds(
+  box: TextBox,
+  targetWidth: number,
+  targetHeight: number
+): TextBoxBoundsInfo {
+  const canvasScale = targetWidth / 600;
+  const computedFontSize = Math.max(12, Math.round(box.fontSize * canvasScale));
+  const fontWeight = box.isBold ? '900' : '700';
+
+  // Use an offscreen dummy canvas context for measurement
+  const offCanvas = document.createElement('canvas');
+  const ctx = offCanvas.getContext('2d');
+  if (!ctx) {
+    return {
+      width: 140,
+      height: 40,
+      lines: [box.text],
+      lineHeight: computedFontSize * 1.18,
+      totalBlockHeight: computedFontSize * 1.18,
+      maxLineWidth: 140,
+      canvasScale,
+    };
+  }
+
+  ctx.font = `${fontWeight} ${computedFontSize}px "${box.fontFamily}", Impact, "Arial Black", sans-serif`;
+
+  const renderText = box.isUppercase ? box.text.toUpperCase() : box.text;
+  const padding = 24 * canvasScale;
+  const maxTextWidth = Math.max(100, targetWidth - padding * 2);
+  const lines = wrapText(ctx, renderText, maxTextWidth);
+  const lineHeight = computedFontSize * 1.18;
+  const totalBlockHeight = Math.max(lineHeight, lines.length * lineHeight);
+
+  let maxLineWidth = 0;
+  lines.forEach((line) => {
+    const w = ctx.measureText(line).width;
+    if (w > maxLineWidth) maxLineWidth = w;
+  });
+
+  return {
+    width: maxLineWidth,
+    height: totalBlockHeight,
+    lines,
+    lineHeight,
+    totalBlockHeight,
+    maxLineWidth,
+    canvasScale,
+  };
+}
+
 export function drawMemeOnCanvas(
   canvas: HTMLCanvasElement,
   image: HTMLImageElement,
@@ -65,20 +129,28 @@ export function drawMemeOnCanvas(
 
   ctx.clearRect(0, 0, targetWidth, targetHeight);
 
-  // Apply filters
+  // Apply curated filters
   ctx.save();
   if (filter === 'deepfry') {
-    ctx.filter = 'contrast(155%) saturate(180%) brightness(105%)';
+    ctx.filter = 'contrast(170%) saturate(220%) brightness(108%)';
+  } else if (filter === 'vhs') {
+    ctx.filter = 'sepia(35%) saturate(140%) contrast(125%) hue-rotate(345deg)';
   } else if (filter === 'grayscale') {
-    ctx.filter = 'grayscale(100%) contrast(120%)';
+    ctx.filter = 'grayscale(100%) contrast(130%) brightness(95%)';
   } else if (filter === 'vintage') {
-    ctx.filter = 'sepia(60%) contrast(115%) brightness(95%)';
+    ctx.filter = 'sepia(65%) contrast(115%) brightness(92%)';
   } else if (filter === 'contrast') {
     ctx.filter = 'contrast(150%) brightness(105%)';
   } else if (filter === 'warm') {
-    ctx.filter = 'sepia(25%) saturate(140%)';
+    ctx.filter = 'sepia(25%) saturate(150%) brightness(103%)';
   } else if (filter === 'dramatic') {
-    ctx.filter = 'contrast(160%) saturate(60%) brightness(90%) hue-rotate(200deg)';
+    ctx.filter = 'contrast(165%) saturate(75%) brightness(90%) hue-rotate(190deg)';
+  } else if (filter === 'cyberpunk') {
+    ctx.filter = 'contrast(150%) saturate(190%) hue-rotate(280deg)';
+  } else if (filter === 'vivid') {
+    ctx.filter = 'saturate(200%) contrast(125%) brightness(104%)';
+  } else if (filter === 'toxic') {
+    ctx.filter = 'contrast(180%) saturate(200%) hue-rotate(90deg) brightness(110%)';
   } else if (filter === 'vignette') {
     ctx.filter = 'contrast(125%) brightness(95%)';
   } else {
@@ -109,93 +181,13 @@ export function drawMemeOnCanvas(
     ctx.restore();
   }
 
-  // Draw Stickers
+  // Draw Stickers using dedicated Die-Cut Sticker Renderer
   stickers.forEach((sticker) => {
-    ctx.save();
-    const xPos = (sticker.x / 100) * targetWidth;
-    const yPos = (sticker.y / 100) * targetHeight;
-
-    ctx.translate(xPos, yPos);
-    ctx.rotate((sticker.rotation * Math.PI) / 180);
-    const stickerScale = (sticker.scale || 1) * (targetWidth / 600);
-
-    if (sticker.type === 'emoji' && sticker.emoji) {
-      const emojiSize = Math.round(52 * stickerScale);
-      ctx.font = `${emojiSize}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(sticker.emoji, 0, 0);
-    } else if (sticker.type === 'sunglasses') {
-      // Draw pixelated thug sunglasses
-      const w = 120 * stickerScale;
-      const h = 32 * stickerScale;
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(-w / 2, -h / 2, w, h);
-      // Lens reflection highlights
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(-w / 2 + 10 * stickerScale, -h / 2 + 4 * stickerScale, 16 * stickerScale, 8 * stickerScale);
-      ctx.fillRect(10 * stickerScale, -h / 2 + 4 * stickerScale, 16 * stickerScale, 8 * stickerScale);
-      // Bridge & side arm
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(-w / 2 - 12 * stickerScale, -h / 2 - 4 * stickerScale, 14 * stickerScale, 6 * stickerScale);
-      ctx.fillRect(w / 2, -h / 2 - 4 * stickerScale, 14 * stickerScale, 6 * stickerScale);
-    } else if (sticker.type === 'laser-eyes') {
-      // Glowing red laser eye effect
-      const radius = 24 * stickerScale;
-      const grad = ctx.createRadialGradient(0, 0, 2 * stickerScale, 0, 0, radius);
-      grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(0.3, '#ff0033');
-      grad.addColorStop(0.7, 'rgba(255, 0, 0, 0.6)');
-      grad.addColorStop(1, 'rgba(255, 0, 0, 0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Laser beam flare lines
-      ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
-      ctx.lineWidth = 3 * stickerScale;
-      ctx.beginPath();
-      ctx.moveTo(-radius * 1.8, 0);
-      ctx.lineTo(radius * 1.8, 0);
-      ctx.moveTo(0, -radius * 1.8);
-      ctx.lineTo(0, radius * 1.8);
-      ctx.stroke();
-    } else if (sticker.type === 'badge') {
-      const text = sticker.label || 'BRUH';
-      const fontSize = Math.round(24 * stickerScale);
-      ctx.font = `900 ${fontSize}px "Anton", Impact, sans-serif`;
-      const textWidth = ctx.measureText(text).width;
-      const padX = 12 * stickerScale;
-      const padY = 5 * stickerScale;
-      const bw = textWidth + padX * 2;
-      const bh = fontSize + padY * 2;
-
-      ctx.fillStyle = '#ef4444';
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3 * stickerScale;
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-      ctx.shadowBlur = 6 * stickerScale;
-      ctx.beginPath();
-      if (typeof (ctx as any).roundRect === 'function') {
-        (ctx as any).roundRect(-bw / 2, -bh / 2, bw, bh, 6 * stickerScale);
-      } else {
-        ctx.rect(-bw / 2, -bh / 2, bw, bh);
-      }
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.shadowColor = 'transparent';
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, 0, 1);
-    }
-    ctx.restore();
+    renderStickerOnCanvas(ctx, sticker, targetWidth, targetHeight);
   });
 
-  // Draw Text Boxes
-  const canvasScale = targetWidth / 600; // Normalizes font size relative to standard 600px width
+  // Draw Text Boxes with Outer / Inner stroke support
+  const canvasScale = targetWidth / 600;
 
   textBoxes.forEach((box) => {
     if (!box.text.trim()) return;
@@ -210,24 +202,21 @@ export function drawMemeOnCanvas(
     ctx.textBaseline = 'middle';
 
     const padding = 24 * canvasScale;
-    const maxTextWidth = targetWidth - padding * 2;
+    const maxTextWidth = Math.max(100, targetWidth - padding * 2);
     const lines = wrapText(ctx, renderText, maxTextWidth);
     const lineHeight = computedFontSize * 1.18;
     const totalBlockHeight = lines.length * lineHeight;
 
-    let posX = (box.x / 100) * targetWidth;
-    let posY = (box.y / 100) * targetHeight;
+    const posX = (box.x / 100) * targetWidth;
+    const posY = (box.y / 100) * targetHeight;
 
     // Draw background banner if enabled (e.g. Modern Twitter/TikTok meme style)
     if (box.hasBackground) {
       ctx.fillStyle = box.bgColor || 'rgba(0, 0, 0, 0.75)';
       const bgPaddingY = 12 * canvasScale;
-      const bgPaddingX = 16 * canvasScale;
+      const bgX = 0;
+      const bgWidth = targetWidth;
 
-      let bgX = 0;
-      let bgWidth = targetWidth;
-
-      // Banner stretches across the canvas
       ctx.fillRect(
         bgX,
         posY - totalBlockHeight / 2 - bgPaddingY,
@@ -236,52 +225,80 @@ export function drawMemeOnCanvas(
       );
     }
 
+    const strokeType = box.strokeType || 'outer';
+    const hasStroke = box.strokeWidth > 0 && !box.hasBackground;
+
     lines.forEach((line, index) => {
       const lineY = posY - totalBlockHeight / 2 + index * lineHeight + lineHeight / 2;
 
-      // Drop shadow / Colored shadow
-      if (box.shadow) {
-        ctx.shadowColor = box.shadowColor || 'rgba(0, 0, 0, 0.95)';
-        ctx.shadowBlur = (box.shadowBlur !== undefined ? box.shadowBlur : 14) * canvasScale;
-        ctx.shadowOffsetX = (box.shadowOffsetX !== undefined ? box.shadowOffsetX : 2) * canvasScale;
-        ctx.shadowOffsetY = (box.shadowOffsetY !== undefined ? box.shadowOffsetY : 3) * canvasScale;
+      // Drop shadow configuration
+      const applyShadow = () => {
+        if (box.shadow) {
+          ctx.shadowColor = box.shadowColor || 'rgba(0, 0, 0, 0.95)';
+          ctx.shadowBlur = (box.shadowBlur !== undefined ? box.shadowBlur : 14) * canvasScale;
+          ctx.shadowOffsetX = (box.shadowOffsetX !== undefined ? box.shadowOffsetX : 2) * canvasScale;
+          ctx.shadowOffsetY = (box.shadowOffsetY !== undefined ? box.shadowOffsetY : 3) * canvasScale;
+        } else {
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+        }
+      };
+
+      if (hasStroke) {
+        if (strokeType === 'outer') {
+          // 1. Outer Stroke: Draw thick stroke behind text fill, then fill on top
+          applyShadow();
+          ctx.strokeStyle = box.strokeColor || '#000000';
+          ctx.lineWidth = Math.max(1.5, Math.round(box.strokeWidth * 2.2 * canvasScale * (computedFontSize / 32)));
+          ctx.lineJoin = 'round';
+          ctx.miterLimit = 2;
+          ctx.strokeText(line, posX, lineY);
+
+          // Fill text crisply on top without shadow bleeding
+          ctx.shadowColor = 'transparent';
+          ctx.fillStyle = box.color || '#ffffff';
+          ctx.fillText(line, posX, lineY);
+        } else if (strokeType === 'inner') {
+          // 2. Inner Stroke: First fill text with shadow, then overlay crisp stroke on top
+          applyShadow();
+          ctx.fillStyle = box.color || '#ffffff';
+          ctx.fillText(line, posX, lineY);
+
+          // Overlay inner stroke
+          ctx.shadowColor = 'transparent';
+          ctx.strokeStyle = box.strokeColor || '#000000';
+          ctx.lineWidth = Math.max(1, Math.round(box.strokeWidth * 1.0 * canvasScale * (computedFontSize / 36)));
+          ctx.lineJoin = 'round';
+          ctx.miterLimit = 2;
+          ctx.strokeText(line, posX, lineY);
+        } else {
+          // None or center
+          applyShadow();
+          ctx.fillStyle = box.color || '#ffffff';
+          ctx.fillText(line, posX, lineY);
+        }
       } else {
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
+        // Standard Fill with Shadow
+        applyShadow();
+        ctx.fillStyle = box.color || '#ffffff';
+        ctx.fillText(line, posX, lineY);
       }
-
-      // Optional subtle stroke / outline (only if strokeWidth > 0)
-      if (box.strokeWidth > 0 && !box.hasBackground) {
-        // Draw crisp stroke without polluting the shadow
-        const originalShadowColor = ctx.shadowColor;
-        ctx.shadowColor = 'transparent';
-        ctx.strokeStyle = box.strokeColor || '#000000';
-        ctx.lineWidth = Math.max(1.5, Math.round(box.strokeWidth * canvasScale * (computedFontSize / 36)));
-        ctx.lineJoin = 'round';
-        ctx.miterLimit = 2;
-        ctx.strokeText(line, posX, lineY);
-        ctx.shadowColor = originalShadowColor;
-      }
-
-      // Text Fill with vibrant color and rich shadow
-      ctx.fillStyle = box.color || '#ffffff';
-      ctx.fillText(line, posX, lineY);
     });
 
     ctx.restore();
   });
 
-  // Optional subtle watermark
+  // Watermark
   if (watermark) {
     ctx.save();
-    ctx.font = `600 ${Math.round(13 * canvasScale)}px "Plus Jakarta Sans", sans-serif`;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.font = `800 ${Math.round(14 * canvasScale)}px "Plus Jakarta Sans", sans-serif`;
+    ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-    ctx.shadowBlur = 4;
+    ctx.shadowBlur = 6;
     ctx.textAlign = 'right';
-    ctx.fillText('⚡ Memenator', targetWidth - 14 * canvasScale, targetHeight - 12 * canvasScale);
+    ctx.fillText('🍉 MEMENATOR', targetWidth - 14 * canvasScale, targetHeight - 14 * canvasScale);
     ctx.restore();
   }
 }

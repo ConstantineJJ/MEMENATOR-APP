@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { TextBox, MemeSticker, MemeFilter, CompositionAnalysis, CompositionGuideType } from '../types';
-import { drawMemeOnCanvas } from '../utils/canvasHelper';
+import { drawMemeOnCanvas, measureTextBoxBounds } from '../utils/canvasHelper';
 import {
   Download,
   Copy,
@@ -718,6 +718,26 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
             {textBoxes.map((box) => {
               const isSelected = selectedBoxId === box.id;
 
+              // Calculate precise bounding dimensions for multi-line text box
+              const canvasDomWidth = canvasRef.current?.clientWidth || 600;
+              const canvasDomHeight = canvasRef.current?.clientHeight || 450;
+              const canvasInternalWidth = canvasRef.current?.width || 800;
+              const canvasInternalHeight = canvasRef.current?.height || 600;
+
+              const scaleX = canvasDomWidth / canvasInternalWidth;
+              const scaleY = canvasDomHeight / canvasInternalHeight;
+
+              const metrics = measureTextBoxBounds(box, canvasInternalWidth, canvasInternalHeight);
+              const boxWidthPx = Math.max(80, Math.round(metrics.maxLineWidth * scaleX) + 24);
+              const boxHeightPx = Math.max(32, Math.round(metrics.totalBlockHeight * scaleY) + 16);
+
+              let transformStyle = 'translate(-50%, -50%)';
+              if (box.textAlign === 'left') {
+                transformStyle = 'translate(-12px, -50%)';
+              } else if (box.textAlign === 'right') {
+                transformStyle = 'translate(calc(-100% + 12px), -50%)';
+              }
+
               return (
                 <div
                   key={box.id}
@@ -731,19 +751,30 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                   style={{
                     left: `${box.x}%`,
                     top: `${box.y}%`,
-                    transform: 'translate(-50%, -50%)',
+                    width: `${boxWidthPx}px`,
+                    height: `${boxHeightPx}px`,
+                    transform: transformStyle,
                   }}
-                  className={`absolute group cursor-grab active:cursor-grabbing select-none min-w-[90px] min-h-[34px] rounded-xl border-2 transition-all ${
+                  className={`absolute group cursor-grab active:cursor-grabbing select-none rounded-xl border-2 transition-all ${
                     isSelected
-                      ? 'border-amber-400 bg-amber-400/10 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/40 z-30'
-                      : 'border-transparent hover:border-amber-400/40 hover:bg-amber-400/5 z-20'
+                      ? 'border-amber-400 bg-amber-400/10 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40 z-30'
+                      : 'border-transparent hover:border-amber-400/50 hover:bg-amber-400/5 z-20'
                   }`}
                   title="Кликните для выбора, перетащите для перемещения"
                 >
+                  {/* Contour Corner Anchor Markers when Selected */}
+                  {isSelected && (
+                    <>
+                      <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-amber-400 border border-neutral-950 rounded-sm shadow-sm pointer-events-none" />
+                      <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-amber-400 border border-neutral-950 rounded-sm shadow-sm pointer-events-none" />
+                      <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-amber-400 border border-neutral-950 rounded-sm shadow-sm pointer-events-none" />
+                    </>
+                  )}
+
                   {/* Contextual Floating Controller when Selected */}
                   {isSelected && (
                     <div
-                      className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-neutral-950/95 border border-neutral-700 rounded-full px-2 py-0.5 shadow-2xl z-40 whitespace-nowrap"
+                      className="absolute -top-11 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-neutral-950/95 border border-neutral-700/90 rounded-full px-2 py-0.5 shadow-2xl z-40 whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {/* Snap to Center X */}
@@ -795,7 +826,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                   {isSelected && onUpdateBoxFontSize && (
                     <div
                       onMouseDown={(e) => handleBoxScaleMouseDown(e, box.id, box.fontSize)}
-                      className="absolute -bottom-2.5 -right-2.5 w-5 h-5 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-full flex items-center justify-center shadow cursor-nwse-resize hover:scale-115 active:scale-95 transition-transform z-40"
+                      className="absolute -bottom-2.5 -right-2.5 w-5 h-5 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-full flex items-center justify-center shadow-lg cursor-nwse-resize hover:scale-115 active:scale-95 transition-transform z-40 border border-neutral-950"
                       title="Потяните для изменения размера текста"
                     >
                       <Maximize2 className="w-2.5 h-2.5" />

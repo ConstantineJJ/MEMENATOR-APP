@@ -1,72 +1,39 @@
 import React, { useState } from 'react';
 import { MemeSticker, MemeFilter } from '../types';
-import { Smile, SlidersHorizontal, Sparkles, Trash2, Check, ShieldCheck } from 'lucide-react';
+import { STICKER_COLLECTION, StickerDefinition } from '../data/stickers';
+import { Smile, SlidersHorizontal, Trash2 } from 'lucide-react';
 
 interface StickersAndFiltersProps {
   filter: MemeFilter;
   onSelectFilter: (filter: MemeFilter) => void;
   stickers: MemeSticker[];
-  onAddSticker: (type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'badge', label: string, emoji?: string) => void;
+  onAddSticker: (
+    type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'badge' | 'custom' | 'sticker-art' | 'stamp',
+    label: string,
+    emoji?: string,
+    stickerId?: string
+  ) => void;
   onClearStickers: () => void;
   watermark: boolean;
   onToggleWatermark: (val: boolean) => void;
 }
 
-const FILTERS: { id: MemeFilter; label: string; icon: string }[] = [
-  { id: 'none', label: 'Оригинал', icon: '✨' },
-  { id: 'deepfry', label: 'Прожарка', icon: '🔥' },
-  { id: 'vignette', label: 'Виньетка', icon: '🎬' },
-  { id: 'dramatic', label: 'Холод нуар', icon: '❄️' },
-  { id: 'contrast', label: 'Контраст', icon: '⚡' },
-  { id: 'grayscale', label: 'Ч/Б', icon: '🖤' },
-  { id: 'vintage', label: 'Сепия', icon: '📜' },
-  { id: 'warm', label: 'Теплый', icon: '☀️' },
+const FILTERS: { id: MemeFilter; label: string; icon: string; desc: string }[] = [
+  { id: 'none', label: 'Оригинал', icon: '✨', desc: 'Без коррекции' },
+  { id: 'deepfry', label: 'Deep Fry', icon: '🔥', desc: 'Ультра-сочность' },
+  { id: 'vhs', label: 'VHS 90s', icon: '📼', desc: 'Теплый ретро' },
+  { id: 'vintage', label: 'Винтаж', icon: '📜', desc: 'Сепия 35мм' },
+  { id: 'grayscale', label: 'Ч/Б Нуар', icon: '🖤', desc: 'Монохром' },
+  { id: 'contrast', label: 'Контраст', icon: '⚡', desc: 'Четкие тени' },
+  { id: 'warm', label: 'Теплый', icon: '🌅', desc: 'Золотой час' },
+  { id: 'dramatic', label: 'Драма', icon: '🎬', desc: 'Кино' },
+  { id: 'cyberpunk', label: 'Cyberpunk', icon: '🌌', desc: 'Неон и фиолет' },
+  { id: 'vivid', label: 'Vivid Pop', icon: '🌈', desc: 'Яркие цвета' },
+  { id: 'toxic', label: 'Toxic', icon: '☣️', desc: 'Кислота' },
+  { id: 'vignette', label: 'Виньетка', icon: '🌑', desc: 'Затемнение' },
 ];
 
-type StickerCategory = 'all' | 'effects' | 'badges' | 'reactions';
-
-const STICKER_PRESETS: {
-  type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'badge';
-  label: string;
-  emoji?: string;
-  category: 'effects' | 'reactions' | 'badges';
-}[] = [
-  // Effects
-  { type: 'sunglasses', label: 'Очки Thug', emoji: '🕶️', category: 'effects' },
-  { type: 'laser-eyes', label: 'Лазер-глаза', emoji: '🔴', category: 'effects' },
-  { type: 'emoji', label: 'Корона', emoji: '👑', category: 'effects' },
-  { type: 'emoji', label: 'Шляпа', emoji: '🕵️', category: 'effects' },
-  { type: 'emoji', label: 'Цепь', emoji: '⛓️', category: 'effects' },
-  { type: 'emoji', label: 'Нимб', emoji: '😇', category: 'effects' },
-  { type: 'emoji', label: 'Рога', emoji: '😈', category: 'effects' },
-
-  // Badges & Stamps
-  { type: 'badge', label: 'BRUH', emoji: '🛑', category: 'badges' },
-  { type: 'badge', label: 'БАЗА', emoji: '💎', category: 'badges' },
-  { type: 'badge', label: 'КРИНЖ', emoji: '😬', category: 'badges' },
-  { type: 'badge', label: 'WTF?!', emoji: '❓', category: 'badges' },
-  { type: 'badge', label: 'FAIL', emoji: '❌', category: 'badges' },
-  { type: 'badge', label: 'APPROVED', emoji: '✅', category: 'badges' },
-  { type: 'badge', label: 'СКАМ', emoji: '⚠️', category: 'badges' },
-  { type: 'badge', label: 'W', emoji: '🏆', category: 'badges' },
-  { type: 'badge', label: 'L', emoji: '📉', category: 'badges' },
-
-  // Reactions
-  { type: 'emoji', label: 'Череп', emoji: '💀', category: 'reactions' },
-  { type: 'emoji', label: 'Огонь', emoji: '🔥', category: 'reactions' },
-  { type: 'emoji', label: 'Клоун', emoji: '🤡', category: 'reactions' },
-  { type: 'emoji', label: 'Сигма', emoji: '🗿', category: 'reactions' },
-  { type: 'emoji', label: 'До слез', emoji: '😂', category: 'reactions' },
-  { type: 'emoji', label: '100%', emoji: '💯', category: 'reactions' },
-  { type: 'emoji', label: 'Взрыв', emoji: '🤯', category: 'reactions' },
-  { type: 'emoji', label: 'Думает', emoji: '🤔', category: 'reactions' },
-  { type: 'emoji', label: 'Фейспалм', emoji: '🤦', category: 'reactions' },
-  { type: 'emoji', label: 'Взгляд', emoji: '👀', category: 'reactions' },
-  { type: 'emoji', label: 'Рыдает', emoji: '😭', category: 'reactions' },
-  { type: 'emoji', label: 'Пот', emoji: '😰', category: 'reactions' },
-  { type: 'emoji', label: 'Шок', emoji: '😱', category: 'reactions' },
-  { type: 'emoji', label: 'Деньги', emoji: '💸', category: 'reactions' },
-];
+type StickerCategory = 'all' | 'mascot' | 'accessories' | 'badges' | 'characters' | 'reactions';
 
 export const StickersAndFilters: React.FC<StickersAndFiltersProps> = ({
   filter,
@@ -77,120 +44,113 @@ export const StickersAndFilters: React.FC<StickersAndFiltersProps> = ({
   watermark,
   onToggleWatermark,
 }) => {
-  const [activeTab, setActiveTab] = useState<'stickers' | 'filters'>('filters');
+  const [activeTab, setActiveTab] = useState<'filters' | 'stickers'>('filters');
   const [activeCategory, setActiveCategory] = useState<StickerCategory>('all');
 
   const filteredStickers =
     activeCategory === 'all'
-      ? STICKER_PRESETS
-      : STICKER_PRESETS.filter((s) => s.category === activeCategory);
+      ? STICKER_COLLECTION
+      : STICKER_COLLECTION.filter((s) => s.category === activeCategory);
 
   return (
-    <div className="bg-neutral-900/85 border border-neutral-800/90 rounded-3xl p-3.5 sm:p-4 backdrop-blur shadow-lg w-full h-full flex flex-col justify-between min-h-0 gap-2.5">
-      {/* Top Segmented Control: Filters vs Stickers */}
-      <div className="flex items-center justify-between gap-1.5 p-1 bg-neutral-950/80 rounded-2xl border border-neutral-800 shrink-0">
-        <button
-          onClick={() => setActiveTab('filters')}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-            activeTab === 'filters'
-              ? 'bg-amber-400 text-neutral-950 shadow-sm'
-              : 'text-neutral-400 hover:text-white'
-          }`}
+    <div className="bg-neutral-900/90 border border-neutral-800 hover:border-emerald-500/30 rounded-2xl p-2.5 sm:p-3 backdrop-blur shadow-md w-full h-full flex flex-col justify-between overflow-hidden min-h-0">
+      {/* Top Segmented Control: Filters vs Stickers + Watermark */}
+      <div className="flex items-center justify-between gap-1.5 shrink-0 mb-1.5">
+        <div className="flex items-center gap-1 p-0.5 bg-neutral-950/90 rounded-xl border border-neutral-800 flex-1">
+          <button
+            onClick={() => setActiveTab('filters')}
+            className={`flex-1 py-1 px-2 rounded-lg text-[10.5px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+              activeTab === 'filters'
+                ? 'bg-rose-500 text-white shadow-sm shadow-rose-500/20'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+            <span>Фильтры</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('stickers')}
+            className={`flex-1 py-1 px-2 rounded-lg text-[10.5px] font-bold transition flex items-center justify-center gap-1 cursor-pointer relative ${
+              activeTab === 'stickers'
+                ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/20'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Smile className="w-3 h-3" />
+            <span>Наклейки</span>
+            {stickers.length > 0 && (
+              <span className="w-3.5 h-3.5 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center">
+                {stickers.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Watermark toggle */}
+        <label
+          htmlFor="watermark-toggle-compact"
+          className="flex items-center gap-1 cursor-pointer select-none text-[9.5px] text-neutral-400 hover:text-neutral-200 shrink-0 px-2 py-1 bg-neutral-950/60 rounded-xl border border-neutral-800/80"
+          title="Включить водяной знак на готовом меме"
         >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span>Фильтры</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('stickers')}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer relative ${
-            activeTab === 'stickers'
-              ? 'bg-amber-400 text-neutral-950 shadow-sm'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <Smile className="w-3.5 h-3.5" />
-          <span>Стикеры</span>
-          {stickers.length > 0 && (
-            <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
-              {stickers.length}
-            </span>
-          )}
-        </button>
+          <input
+            id="watermark-toggle-compact"
+            type="checkbox"
+            checked={watermark}
+            onChange={(e) => onToggleWatermark(e.target.checked)}
+            className="w-3 h-3 rounded border-neutral-700 bg-neutral-900 text-rose-500 focus:ring-0 cursor-pointer"
+          />
+          <span>🍉 Водяной знак</span>
+        </label>
       </div>
 
-      {/* TAB 1: FILTERS */}
+      {/* ================= TAB 1: FILTERS ================= */}
       {activeTab === 'filters' && (
-        <div className="flex-1 min-h-0 flex flex-col justify-between space-y-2.5">
-          <div className="flex items-center justify-between shrink-0">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-              Цветовой тон мема
-            </span>
-            {filter !== 'none' && (
-              <button
-                onClick={() => onSelectFilter('none')}
-                className="text-[10px] text-amber-400 hover:underline cursor-pointer font-medium"
-              >
-                Сбросить
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 flex-1 items-stretch py-0.5">
+        <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
+          <div className="grid grid-cols-3 gap-1.5 flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar items-center">
             {FILTERS.map((f) => {
               const isSelected = filter === f.id;
               return (
                 <button
                   key={f.id}
                   onClick={() => onSelectFilter(f.id)}
-                  className={`py-2 sm:py-2.5 px-2.5 rounded-xl text-xs font-semibold border transition cursor-pointer flex items-center gap-2 ${
+                  className={`p-1.5 rounded-xl text-[10px] font-semibold border transition cursor-pointer flex items-center gap-1.5 truncate ${
                     isSelected
-                      ? 'border-amber-400 bg-amber-500/15 text-amber-300 shadow-sm ring-1 ring-amber-400/40'
-                      : 'border-neutral-800/80 bg-neutral-950/60 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800/40'
+                      ? 'border-rose-500 bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40'
+                      : 'border-neutral-800 bg-neutral-950/70 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800/50'
                   }`}
+                  title={`${f.label} — ${f.desc}`}
                 >
-                  <span className="text-base shrink-0">{f.icon}</span>
-                  <span className="truncate text-left">{f.label}</span>
+                  <span className="text-sm shrink-0">{f.icon}</span>
+                  <div className="min-w-0 text-left">
+                    <p className="truncate font-bold leading-tight">{f.label}</p>
+                    <p className="text-[8px] text-neutral-400 truncate">{f.desc}</p>
+                  </div>
                 </button>
               );
             })}
           </div>
-
-          {/* Watermark toggle */}
-          <div className="pt-2 border-t border-neutral-800/60 flex items-center justify-between text-xs shrink-0">
-            <label
-              htmlFor="watermark-toggle"
-              className="flex items-center gap-2 cursor-pointer select-none text-neutral-300"
-            >
-              <input
-                id="watermark-toggle"
-                type="checkbox"
-                checked={watermark}
-                onChange={(e) => onToggleWatermark(e.target.checked)}
-                className="w-3.5 h-3.5 rounded border-neutral-700 bg-neutral-900 text-amber-400 focus:ring-0 cursor-pointer"
-              />
-              <span className="text-[11px]">Водяной знак «⚡ Memenator»</span>
-            </label>
-          </div>
         </div>
       )}
 
-      {/* TAB 2: STICKERS */}
+      {/* ================= TAB 2: STICKERS ================= */}
       {activeTab === 'stickers' && (
-        <div className="flex-1 min-h-0 flex flex-col space-y-2">
-          {/* Categories Selector */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none text-[10px] shrink-0">
+        <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
+          {/* Categories bar */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none text-[9.5px] shrink-0 mb-1">
             {[
               { id: 'all', label: 'Все' },
-              { id: 'effects', label: 'Эффекты' },
-              { id: 'badges', label: 'Плашки' },
-              { id: 'reactions', label: 'Реакции' },
+              { id: 'mascot', label: '🍉 Маскот' },
+              { id: 'accessories', label: '🕶️ Арт & Акс' },
+              { id: 'badges', label: '🏷️ Штампы' },
+              { id: 'characters', label: '🐸 Герои' },
+              { id: 'reactions', label: '🔥 Эмодзи' },
             ].map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id as StickerCategory)}
                 className={`px-2 py-0.5 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
                   activeCategory === cat.id
-                    ? 'bg-amber-400 text-neutral-950 font-bold'
+                    ? 'bg-emerald-500 text-white font-bold shadow-sm'
                     : 'bg-neutral-950 text-neutral-400 hover:text-white border border-neutral-800'
                 }`}
               >
@@ -200,31 +160,44 @@ export const StickersAndFilters: React.FC<StickersAndFiltersProps> = ({
           </div>
 
           {/* Stickers Grid */}
-          <div className="grid grid-cols-4 gap-1.5 flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
-            {filteredStickers.map((stk, idx) => (
+          <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar items-center">
+            {filteredStickers.map((stk: StickerDefinition) => (
               <button
-                key={idx}
-                onClick={() => onAddSticker(stk.type, stk.label, stk.emoji)}
-                className="flex flex-col items-center justify-center p-1.5 rounded-xl bg-neutral-950/70 border border-neutral-800/80 hover:border-amber-400/80 hover:bg-amber-400/10 transition group cursor-pointer active:scale-90"
-                title={`Добавить ${stk.label}`}
+                key={stk.id}
+                onClick={() => onAddSticker(stk.type, stk.label, stk.emoji, stk.id)}
+                className="flex flex-col items-center justify-center p-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800/80 hover:border-emerald-400 hover:bg-emerald-500/10 transition group cursor-pointer active:scale-90"
+                title={`Добавить наклейку «${stk.label}»`}
               >
-                <span className="text-xl group-hover:scale-115 transition-transform">
-                  {stk.emoji || '📌'}
-                </span>
-                <span className="text-[9px] text-neutral-400 group-hover:text-amber-300 truncate w-full text-center mt-0.5">
+                <div className="w-6 h-6 flex items-center justify-center">
+                  {stk.id === 'watermelon-boss' ? (
+                    <span className="text-lg">🍉</span>
+                  ) : stk.type === 'stamp' ? (
+                    <span className="text-[7.5px] font-black font-mono border border-emerald-400 text-emerald-400 px-1 rounded bg-black/40">
+                      {stk.badgeText?.slice(0, 5) || 'OK'}
+                    </span>
+                  ) : stk.type === 'badge' ? (
+                    <span className="text-[7px] font-black px-1 rounded bg-rose-500 text-white">
+                      {stk.badgeText?.slice(0, 5) || 'BADGE'}
+                    </span>
+                  ) : (
+                    <span className="text-base group-hover:scale-115 transition-transform">
+                      {stk.emoji || '📌'}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[8px] text-neutral-400 group-hover:text-emerald-300 truncate w-full text-center mt-0.5 font-medium">
                   {stk.label}
                 </span>
               </button>
             ))}
           </div>
 
-          {/* Active Stickers Counter & Clear */}
           {stickers.length > 0 && (
-            <div className="pt-2 border-t border-neutral-800/60 flex items-center justify-between text-[11px] shrink-0">
+            <div className="pt-1 flex items-center justify-between text-[9px] shrink-0 border-t border-neutral-800/60 mt-1">
               <span className="text-neutral-400">На холсте: {stickers.length}</span>
               <button
                 onClick={onClearStickers}
-                className="text-rose-400 hover:text-rose-300 flex items-center gap-1 font-semibold cursor-pointer"
+                className="text-rose-400 hover:text-rose-300 flex items-center gap-1 font-bold cursor-pointer"
               >
                 <Trash2 className="w-3 h-3" />
                 <span>Очистить все</span>
