@@ -18,7 +18,7 @@ function generateFallbackSvg(prompt: string, aspectRatio = '1:1'): string {
     '9:16': [675, 1200],
     '4:3': [960, 720],
   };
-  const [width, height] = dimensions[aspectRatio] || dimensions['1:1'];
+  const [width, height] = dimensions[aspectRatio] ?? dimensions['1:1'] ?? [800, 800];
   const cleanPrompt = escapeXml(prompt.trim().slice(0, 90) || 'Meme template');
   const centerX = width / 2;
   const centerY = height / 2;
