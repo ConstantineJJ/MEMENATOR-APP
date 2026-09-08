@@ -26,25 +26,14 @@ import {
 } from './types';
 import { getImagePayloadFromUrl } from './utils/imageHelper';
 import { saveMemeToHistory } from './utils/memeStorage';
-import { getIndexedValue, putIndexedValue } from './utils/indexedDbStorage';
 import { generateMemeThumbnail } from './utils/thumbnailGenerator';
 import { MemeHistorySnapshot, useMemeUndoHistory } from './hooks/useMemeUndoHistory';
+import {
+  MemeDraftSnapshot,
+  MemeDraftState,
+  useMemeDraftPersistence,
+} from './hooks/useMemeDraftPersistence';
 import { Sparkles, CheckCircle, Crop, Undo2, Redo2, RotateCcw, Target } from 'lucide-react';
-
-interface DraftState {
-  textBoxes: TextBox[];
-  stickers: MemeSticker[];
-  filter: MemeFilter;
-  filterIntensity: number;
-  watermark: boolean;
-  activeImageSrc: string;
-  originalImageSrc: string | null;
-  selectedTemplateId: string | null;
-  timestamp: number;
-}
-
-const DRAFT_STORAGE_KEY = 'draft:v2';
-const LEGACY_DRAFT_STORAGE_KEY = 'memenator_draft_v2';
 
 export default function App() {
   // Active Meme Image & Original for Cropping Reset
@@ -123,8 +112,6 @@ export default function App() {
   const lastAnalyzedSrcRef = useRef<string>('');
   const captionRequestInFlightRef = useRef(false);
 
-  // Autosave status indicator
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
 
   // Single-screen Sidebar Tabs state
@@ -158,8 +145,6 @@ export default function App() {
   };
 
   const {
-    history,
-    historyIndex,
     canUndo,
     canRedo,
     recordSnapshot: pushToHistory,
@@ -172,71 +157,37 @@ export default function App() {
     onRedo: () => showToast('Действие повторено (Redo)'),
   });
 
-  // Autosave Draft to IndexedDB so large uploaded photos do not exhaust localStorage.
-  useEffect(() => {
-    setIsDraftSaved(false);
-    const timer = setTimeout(() => {
-      const draft: DraftState = {
-        textBoxes,
-        stickers,
-        filter,
-        filterIntensity,
-        watermark,
-        activeImageSrc,
-        originalImageSrc,
-        selectedTemplateId,
-        timestamp: Date.now(),
-      };
+  const applyDraft = useCallback((parsed: MemeDraftState) => {
+    setTextBoxes(parsed.textBoxes);
+    if (Array.isArray(parsed.stickers)) setStickrs(parsed.stickers);
+    if (parsed.filter) setFilter(parsed.filter);
+    if (typeof parsed.filterIntensity === 'number') setFilterIntensity(parsed.filterIntensity);
+    if (parsed.watermark !== undefined) setWatermark(parsed.watermark);
+    setActiveImageSrc(parsed.activeImageSrc);
+    if (parsed.originalImageSrc) setOriginalImageSrc(parsed.originalImageSrc);
+    if (parsed.selectedTemplateId !== undefined) setSelectedTemplateId(parsed.selectedTemplateId);
+  }, []);
 
-      void putIndexedValue(DRAFT_STORAGE_KEY, draft)
-        .then(() => setIsDraftSaved(true))
-        .catch((err) => console.warn('Autosave failed:', err));
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc, originalImageSrc, selectedTemplateId]);
-
-  // Restore Draft from IndexedDB on mount. One-way migrate legacy localStorage draft.
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        let parsed = await getIndexedValue<DraftState>(DRAFT_STORAGE_KEY);
-
-        if (!parsed) {
-          const legacyDraft = localStorage.getItem(LEGACY_DRAFT_STORAGE_KEY);
-          if (legacyDraft) {
-            const legacyParsed = JSON.parse(legacyDraft) as DraftState;
-            if (legacyParsed?.textBoxes && legacyParsed?.activeImageSrc) {
-              parsed = legacyParsed;
-              await putIndexedValue(DRAFT_STORAGE_KEY, legacyParsed);
-              localStorage.removeItem(LEGACY_DRAFT_STORAGE_KEY);
-            }
-          }
-        }
-
-        if (cancelled || !parsed || !parsed.textBoxes || !parsed.activeImageSrc) return;
-
-        setTextBoxes(parsed.textBoxes);
-        if (Array.isArray(parsed.stickers)) setStickrs(parsed.stickers);
-        if (parsed.filter) setFilter(parsed.filter);
-        if (typeof parsed.filterIntensity === 'number') setFilterIntensity(parsed.filterIntensity);
-        if (parsed.watermark !== undefined) setWatermark(parsed.watermark);
-        setActiveImageSrc(parsed.activeImageSrc);
-        if (parsed.originalImageSrc) setOriginalImageSrc(parsed.originalImageSrc);
-        if (parsed.selectedTemplateId !== undefined) setSelectedTemplateId(parsed.selectedTemplateId);
-        setIsDraftSaved(true);
-        showToast('Черновик успешно восстановлен из памяти');
-      } catch (err) {
-        console.warn('Draft recovery failed:', err);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+  const handleDraftRestored = useCallback(() => {
+    showToast('Черновик успешно восстановлен из памяти');
   }, [showToast]);
+
+  const currentDraft: MemeDraftSnapshot = {
+    textBoxes,
+    stickers,
+    filter,
+    filterIntensity,
+    watermark,
+    activeImageSrc,
+    originalImageSrc,
+    selectedTemplateId,
+  };
+
+  const { isDraftSaved } = useMemeDraftPersistence({
+    currentDraft,
+    applyDraft,
+    onRestored: handleDraftRestored,
+  });
 
   // Auto-record to Meme History list for the "Лента" -> "История" tab
   useEffect(() => {
