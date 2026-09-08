@@ -54,8 +54,14 @@ const ENGLISH_FALLBACKS: Array<[string, string, string]> = [
   ],
 ];
 
+const ENGLISH_MECHANICS = ['Observation', 'Contrast', 'Unexpected interpretation'] as const;
+
 function englishStyleName(styleId: string): string {
-  return STYLE_NAMES_EN[styleId] || STYLE_NAMES_EN.trending;
+  return STYLE_NAMES_EN[styleId] ?? STYLE_NAMES_EN.trending ?? 'Trends / Viral';
+}
+
+function fallbackMechanic(index: number): string {
+  return ENGLISH_MECHANICS[index % ENGLISH_MECHANICS.length] ?? 'Observation';
 }
 
 function normalizeEnglishCaption(value: unknown, styleId: string, index: number): CaptionResult | null {
@@ -79,7 +85,7 @@ function normalizeEnglishCaption(value: unknown, styleId: string, index: number)
     humorMechanic:
       typeof raw.humorMechanic === 'string' && raw.humorMechanic.trim()
         ? raw.humorMechanic.trim()
-        : ['Observation', 'Contrast', 'Unexpected interpretation'][index % 3],
+        : fallbackMechanic(index),
     imageConnection:
       typeof raw.imageConnection === 'string' && raw.imageConnection.trim()
         ? raw.imageConnection.trim()
@@ -112,7 +118,7 @@ function buildEnglishFallbackCaptions(styleId: string, customContext = ''): Capt
     topText,
     bottomText,
     style,
-    humorMechanic: ['Observation', 'Contrast', 'Unexpected interpretation'][index],
+    humorMechanic: fallbackMechanic(index),
     imageConnection:
       'Local fallback: regenerate after Gemini recovers for precise image-specific grounding.',
     explanation:
