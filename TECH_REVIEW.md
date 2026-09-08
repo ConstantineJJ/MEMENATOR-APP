@@ -26,9 +26,10 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [x] Make autosave status reflect pending vs saved state.
 - [x] Label composition fallback as heuristic rather than real AI analysis.
 - [x] Improve retry handling for 429 / RESOURCE_EXHAUSTED.
+- [x] Remove white sticker backing circles and refresh the programmatic sticker visuals with cleaner shadows, gradients, and transparent shapes.
 - [ ] Split oversized `server.ts`, `MemeCanvas.tsx`, and `App.tsx` without changing behavior.
-- [ ] Deduplicate shared AI style configuration.
-- [ ] Tighten TypeScript settings incrementally.
+- [x] Deduplicate shared AI style configuration between the compact panel and full caption modal.
+- [ ] Tighten TypeScript settings incrementally. Progress: `strictBindCallApply`, `strictFunctionTypes`, `noImplicitThis`, and `noUncheckedSideEffectImports` are enabled; Vite client declarations added so asset imports remain type-safe.
 - [x] Add permanent read-only typecheck/build CI safety net.
 - [x] Add initial automated tests to the CI safety net (aggregator normalization/signature coverage); expand coverage as modules are refactored.
 - [x] Read `PORT` from the environment.
