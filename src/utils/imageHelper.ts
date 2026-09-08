@@ -5,6 +5,20 @@ export interface ImagePayload {
   height: number;
 }
 
+export const MOBILE_WORKING_IMAGE_MAX_DIMENSION = 3072;
+export const DESKTOP_WORKING_IMAGE_MAX_DIMENSION = 4096;
+
+export function getWorkingImageDimensionLimit(): number {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return DESKTOP_WORKING_IMAGE_MAX_DIMENSION;
+  }
+
+  const constrainedDevice = window.matchMedia('(max-width: 1024px), (pointer: coarse)').matches;
+  return constrainedDevice
+    ? MOBILE_WORKING_IMAGE_MAX_DIMENSION
+    : DESKTOP_WORKING_IMAGE_MAX_DIMENSION;
+}
+
 function getMimeTypeFromDataUrl(dataUrl: string): string {
   const match = dataUrl.match(/^data:([^;,]+)[;,]/i);
   return match?.[1]?.toLowerCase() || 'image/jpeg';
@@ -31,6 +45,77 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
+function outputFileName(fileName: string, outputType: string): string {
+  const base = fileName.replace(/\.[^.]+$/, '') || 'memenator-image';
+  if (outputType === 'image/png') return `${base}.png`;
+  if (outputType === 'image/webp') return `${base}.webp`;
+  return `${base}.jpg`;
+}
+
+/**
+ * Protect mobile browsers from retaining full camera-resolution photos in every
+ * editable canvas. Small inputs remain byte-for-byte untouched. Oversized
+ * images are rasterized once to a device-appropriate long-side limit before
+ * App reads them into its active canvas/history state.
+ */
+export async function normalizeImageFileForWorkingCanvas(
+  file: File,
+  maxDimension = getWorkingImageDimensionLimit()
+): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+
+  let bitmap: ImageBitmap | null = null;
+  try {
+    bitmap = await createImageBitmap(file);
+    const sourceWidth = bitmap.width;
+    const sourceHeight = bitmap.height;
+    const longestSide = Math.max(sourceWidth, sourceHeight);
+
+    if (longestSide <= maxDimension) {
+      return file;
+    }
+
+    const scale = maxDimension / longestSide;
+    const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+    const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+
+    const outputType = file.type === 'image/png'
+      ? 'image/png'
+      : file.type === 'image/webp'
+        ? 'image/webp'
+        : 'image/jpeg';
+    const blob = await canvasToBlob(
+      canvas,
+      outputType,
+      outputType === 'image/png' ? undefined : 0.92
+    );
+    if (!blob) return file;
+
+    return new File([blob], outputFileName(file.name, outputType), {
+      type: blob.type || outputType,
+      lastModified: file.lastModified,
+    });
+  } catch (err) {
+    console.warn('Working-image normalization failed; using original file:', err);
+    return file;
+  } finally {
+    bitmap?.close();
+  }
 }
 
 export async function getImagePayloadFromUrl(url: string): Promise<ImagePayload | null> {
