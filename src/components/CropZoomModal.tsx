@@ -36,6 +36,38 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
+  const getImageAspect = () => {
+    const img = imgRef.current;
+    const width = img?.naturalWidth || img?.width || 1;
+    const height = img?.naturalHeight || img?.height || 1;
+    return width / Math.max(1, height);
+  };
+
+  const getTargetPixelRatio = (ratio: AspectRatioOption): number | null => {
+    if (ratio === 'free') return null;
+    if (ratio === '1:1') return 1;
+    if (ratio === '4:3') return 4 / 3;
+    if (ratio === '16:9') return 16 / 9;
+    return 9 / 16;
+  };
+
+  const getPercentRatio = (ratio: AspectRatioOption): number | null => {
+    const targetPixelRatio = getTargetPixelRatio(ratio);
+    if (!targetPixelRatio) return null;
+    return targetPixelRatio / getImageAspect();
+  };
+
+  const constrainRatioSize = (width: number, maxWidth: number, maxHeight: number, percentRatio: number) => {
+    let nextW = Math.max(1, Math.min(maxWidth, width));
+    let nextH = nextW / percentRatio;
+    if (nextH > maxHeight) { nextH = maxHeight; nextW = nextH * percentRatio; }
+    if (nextW < 15) { nextW = 15; nextH = nextW / percentRatio; }
+    if (nextH < 15) { nextH = 15; nextW = nextH * percentRatio; }
+    if (nextW > maxWidth) { nextW = maxWidth; nextH = nextW / percentRatio; }
+    if (nextH > maxHeight) { nextH = maxHeight; nextW = nextH * percentRatio; }
+    return { width: nextW, height: nextH };
+  };
+
   // Reset or initialize state when opening
   useEffect(() => {
     if (isOpen) {
@@ -52,26 +84,14 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
     setAspectRatio(ratio);
     if (ratio === 'free') return;
 
-    let targetRatio = 1;
-    if (ratio === '1:1') targetRatio = 1;
-    if (ratio === '4:3') targetRatio = 4 / 3;
-    if (ratio === '16:9') targetRatio = 16 / 9;
-    if (ratio === '9:16') targetRatio = 9 / 16;
+    const percentRatio = getPercentRatio(ratio);
+    if (!percentRatio) return;
 
     setCropBox((prev) => {
-      let newW = prev.width;
-      let newH = newW / targetRatio;
-      if (newH > 90) {
-        newH = 80;
-        newW = newH * targetRatio;
-      }
-      if (newW > 90) {
-        newW = 90;
-        newH = newW / targetRatio;
-      }
-      const newX = Math.max(5, Math.min(95 - newW, prev.x));
-      const newY = Math.max(5, Math.min(95 - newH, prev.y));
-      return { x: newX, y: newY, width: newW, height: newH };
+      const size = constrainRatioSize(Math.min(prev.width, 90), 90, 90, percentRatio);
+      const newX = Math.max(5, Math.min(95 - size.width, prev.x));
+      const newY = Math.max(5, Math.min(95 - size.height, prev.y));
+      return { x: newX, y: newY, width: size.width, height: size.height };
     });
   };
 
@@ -115,15 +135,29 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
         const newY = Math.max(0, Math.min(100 - cropBox.height, dragStart.boxY + deltaYPercent));
         setCropBox((prev) => ({ ...prev, x: newX, y: newY }));
       } else if (isResizingCorner === 'br') {
-        const newW = Math.max(15, Math.min(100 - dragStart.boxX, dragStart.boxW + deltaXPercent));
-        const newH = Math.max(15, Math.min(100 - dragStart.boxY, dragStart.boxH + deltaYPercent));
-        setCropBox((prev) => ({ ...prev, width: newW, height: newH }));
+        const maxW = 100 - dragStart.boxX;
+        const maxH = 100 - dragStart.boxY;
+        const percentRatio = getPercentRatio(aspectRatio);
+        if (percentRatio) {
+          const size = constrainRatioSize(dragStart.boxW + deltaXPercent, maxW, maxH, percentRatio);
+          setCropBox((prev) => ({ ...prev, width: size.width, height: size.height }));
+        } else {
+          const newW = Math.max(15, Math.min(maxW, dragStart.boxW + deltaXPercent));
+          const newH = Math.max(15, Math.min(maxH, dragStart.boxH + deltaYPercent));
+          setCropBox((prev) => ({ ...prev, width: newW, height: newH }));
+        }
       } else if (isResizingCorner === 'tl') {
-        const newX = Math.max(0, Math.min(dragStart.boxX + dragStart.boxW - 15, dragStart.boxX + deltaXPercent));
-        const newY = Math.max(0, Math.min(dragStart.boxY + dragStart.boxH - 15, dragStart.boxY + deltaYPercent));
-        const newW = dragStart.boxW - (newX - dragStart.boxX);
-        const newH = dragStart.boxH - (newY - dragStart.boxY);
-        setCropBox({ x: newX, y: newY, width: newW, height: newH });
+        const right = dragStart.boxX + dragStart.boxW;
+        const bottom = dragStart.boxY + dragStart.boxH;
+        const percentRatio = getPercentRatio(aspectRatio);
+        if (percentRatio) {
+          const size = constrainRatioSize(dragStart.boxW - deltaXPercent, right, bottom, percentRatio);
+          setCropBox({ x: right - size.width, y: bottom - size.height, width: size.width, height: size.height });
+        } else {
+          const newX = Math.max(0, Math.min(right - 15, dragStart.boxX + deltaXPercent));
+          const newY = Math.max(0, Math.min(bottom - 15, dragStart.boxY + deltaYPercent));
+          setCropBox({ x: newX, y: newY, width: right - newX, height: bottom - newY });
+        }
       }
     };
 
@@ -141,7 +175,7 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDraggingBox, isResizingCorner, dragStart, cropBox.width, cropBox.height]);
+  }, [isDraggingBox, isResizingCorner, dragStart, cropBox.width, cropBox.height, aspectRatio]);
 
   // Apply Crop: Renders sub-rectangle into clean high-res canvas
   const handleApply = () => {
@@ -158,8 +192,10 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
     const sourceH = (cropBox.height / 100) * naturalHeight;
 
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(200, Math.round(sourceW));
-    canvas.height = Math.max(200, Math.round(sourceH));
+    const minOutputDimension = 200;
+    const outputScale = Math.max(1, minOutputDimension / Math.max(1, Math.min(sourceW, sourceH)));
+    canvas.width = Math.max(1, Math.round(sourceW * outputScale));
+    canvas.height = Math.max(1, Math.round(sourceH * outputScale));
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -201,6 +237,11 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
       setCropBox({ x: 5, y: 5, width: 90, height: 90 });
     }
   };
+
+  const effectiveImageSrc =
+    imageSrc.startsWith('http') && !imageSrc.includes(window.location.host)
+      ? `/api/proxy-image?url=${encodeURIComponent(imageSrc)}`
+      : imageSrc;
 
   if (!isOpen) return null;
 
@@ -292,7 +333,7 @@ export const CropZoomModal: React.FC<CropZoomModalProps> = ({
             <div ref={containerRef} className="relative inline-block select-none max-h-[46vh]">
               <img
                 ref={imgRef}
-                src={imageSrc}
+                src={effectiveImageSrc}
                 alt="Crop Target"
                 crossOrigin="anonymous"
                 className="max-h-[46vh] w-auto block rounded-lg pointer-events-none"
