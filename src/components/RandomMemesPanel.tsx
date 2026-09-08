@@ -37,13 +37,14 @@ async function mapWithConcurrency<T, R>(
   mapper: (item: T) => Promise<R>
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
-  let cursor = 0;
+  const entries = items.entries();
 
   const worker = async () => {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      results[index] = await mapper(items[index]);
+    while (true) {
+      const next = entries.next();
+      if (next.done) break;
+      const [index, item] = next.value;
+      results[index] = await mapper(item);
     }
   };
 
@@ -84,7 +85,7 @@ async function dedupeCandidatesByPixels(
     if (candidate.perceptualHash) {
       const alreadySeen = [...recentPerceptualHashes, ...batchPerceptualHashes].some((knownHash) =>
         arePerceptuallySimilar(
-          candidate.perceptualHash!,
+          candidate.perceptualHash,
           knownHash,
           PERCEPTUAL_DISTANCE_THRESHOLD
         )
