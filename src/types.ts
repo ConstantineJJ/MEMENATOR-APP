@@ -107,12 +107,25 @@ export interface TextBox {
   bgColor?: string;
 }
 
+// `vector`/`stamp`/`emoji` are the current sticker collection formats.
+// Legacy values stay accepted so saved projects created by earlier MEMENATOR
+// builds remain loadable instead of failing during migration.
+export type MemeStickerType =
+  | 'emoji'
+  | 'vector'
+  | 'stamp'
+  | 'sunglasses'
+  | 'laser-eyes'
+  | 'custom'
+  | 'badge'
+  | 'sticker-art';
+
 export interface MemeSticker {
   id: string;
   label: string;
   emoji?: string;
   stickerId?: string;
-  type: 'emoji' | 'sunglasses' | 'laser-eyes' | 'custom' | 'badge' | 'sticker-art' | 'stamp';
+  type: MemeStickerType;
   x: number; // percentage (0 - 100)
   y: number; // percentage (0 - 100)
   scale: number;
