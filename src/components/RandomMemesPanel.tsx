@@ -24,7 +24,9 @@ interface RandomMemesPanelProps {
 const DISPLAY_LIMIT = 6;
 const FETCH_CANDIDATE_LIMIT = 12;
 const HASH_CONCURRENCY = 4;
-const PERCEPTUAL_DISTANCE_THRESHOLD = 6;
+const RECENT_EXCLUDE_LIMIT = 18;
+const RECENT_PERCEPTUAL_LIMIT = 12;
+const PERCEPTUAL_DISTANCE_THRESHOLD = 4;
 
 type HashedCandidate = {
   item: WebMemeItem;
@@ -37,13 +39,14 @@ async function mapWithConcurrency<T, R>(
   mapper: (item: T) => Promise<R>
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
-  let cursor = 0;
+  const entries = items.entries();
 
   const worker = async () => {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      results[index] = await mapper(items[index]);
+    while (true) {
+      const next = entries.next();
+      if (next.done) break;
+      const [index, item] = next.value;
+      results[index] = await mapper(item);
     }
   };
 
@@ -53,11 +56,21 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+function isSimilarToAny(hash: string, knownHashes: string[]): boolean {
+  return knownHashes.some((knownHash) =>
+    arePerceptuallySimilar(hash, knownHash, PERCEPTUAL_DISTANCE_THRESHOLD)
+  );
+}
+
 async function dedupeCandidatesByPixels(
   items: WebMemeItem[],
   previousHashes: string[]
 ): Promise<WebMemeItem[]> {
-  const recentPerceptualHashes = previousHashes.filter(isPerceptualHash);
+  // Only the most recent few pixel hashes are treated as a hard novelty window.
+  // Older memes are allowed to reappear occasionally instead of exhausting the feed.
+  const recentPerceptualHashes = previousHashes
+    .filter(isPerceptualHash)
+    .slice(-RECENT_PERCEPTUAL_LIMIT);
 
   const hashed = await mapWithConcurrency<WebMemeItem, HashedCandidate>(
     items,
@@ -70,7 +83,7 @@ async function dedupeCandidatesByPixels(
           perceptualHash: `${PERCEPTUAL_HASH_PREFIX}${rawHash}`,
         };
       } catch (err) {
-        // Provider metadata/URL dedupe still protects this item if pixel hashing is unavailable.
+        // Metadata/URL dedupe still protects this item if pixel hashing is unavailable.
         console.debug('Perceptual hash unavailable for meme:', item.id, err);
         return { item, perceptualHash: null };
       }
@@ -78,24 +91,42 @@ async function dedupeCandidatesByPixels(
   );
 
   const selected: WebMemeItem[] = [];
+  const selectedIds = new Set<string>();
   const batchPerceptualHashes: string[] = [];
 
+  // Pass 1: prefer genuinely fresh images.
   for (const candidate of hashed) {
     if (candidate.perceptualHash) {
-      const alreadySeen = [...recentPerceptualHashes, ...batchPerceptualHashes].some((knownHash) =>
-        arePerceptuallySimilar(
-          candidate.perceptualHash!,
-          knownHash,
-          PERCEPTUAL_DISTANCE_THRESHOLD
-        )
-      );
-      if (alreadySeen) continue;
+      const alreadySeenRecently = isSimilarToAny(candidate.perceptualHash, recentPerceptualHashes);
+      const duplicateInBatch = isSimilarToAny(candidate.perceptualHash, batchPerceptualHashes);
+      if (alreadySeenRecently || duplicateInBatch) continue;
 
       batchPerceptualHashes.push(candidate.perceptualHash);
       selected.push({ ...candidate.item, hash: candidate.perceptualHash });
     } else {
       selected.push(candidate.item);
     }
+
+    selectedIds.add(candidate.item.id);
+    if (selected.length >= DISPLAY_LIMIT) return selected;
+  }
+
+  // Pass 2: if the novelty filter became too strict, allow older repeats while
+  // still preventing duplicates inside the same visible six-card batch.
+  for (const candidate of hashed) {
+    if (selectedIds.has(candidate.item.id)) continue;
+
+    if (candidate.perceptualHash && isSimilarToAny(candidate.perceptualHash, batchPerceptualHashes)) {
+      continue;
+    }
+
+    if (candidate.perceptualHash) {
+      batchPerceptualHashes.push(candidate.perceptualHash);
+      selected.push({ ...candidate.item, hash: candidate.perceptualHash });
+    } else {
+      selected.push(candidate.item);
+    }
+    selectedIds.add(candidate.item.id);
 
     if (selected.length >= DISPLAY_LIMIT) break;
   }
@@ -116,7 +147,6 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [favoritesIds, setFavoritesIds] = useState<string[]>([]);
 
-  // Update favorite IDs
   const refreshFavs = () => {
     const favs = getFavorites();
     setFavoritesIds(favs.map((f) => f.id));
@@ -126,7 +156,6 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
     refreshFavs();
   }, [historyRefreshTrigger]);
 
-  // Fetch a wider candidate pool, then pixel-dedupe it down to the visible six.
   const fetchRandomMemes = async (query = '', isManualDice = false) => {
     setIsLoading(true);
     if (isManualDice) setIsRollingDice(true);
@@ -134,15 +163,17 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
 
     try {
       const excludes = getShownWebMemeExcludes();
+      const recentIds = excludes.excludeIds.slice(-RECENT_EXCLUDE_LIMIT);
+      const recentHashes = excludes.excludeHashes.slice(-RECENT_EXCLUDE_LIMIT);
       const params = new URLSearchParams();
       params.set('limit', String(FETCH_CANDIDATE_LIMIT));
       if (query.trim()) params.set('query', query.trim());
 
-      if (excludes.excludeIds.length > 0) {
-        params.set('excludeIds', excludes.excludeIds.slice(-60).join(','));
+      if (recentIds.length > 0) {
+        params.set('excludeIds', recentIds.join(','));
       }
-      if (excludes.excludeHashes.length > 0) {
-        params.set('excludeHashes', excludes.excludeHashes.slice(-60).join(','));
+      if (recentHashes.length > 0) {
+        params.set('excludeHashes', recentHashes.join(','));
       }
 
       const res = await fetch(`/api/feed/web-memes?${params.toString()}`);
@@ -153,14 +184,14 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
       const data = await res.json();
       if (data.items && Array.isArray(data.items)) {
         const candidates = data.items as WebMemeItem[];
-        const deduped = await dedupeCandidatesByPixels(candidates, excludes.excludeHashes);
+        const deduped = await dedupeCandidatesByPixels(candidates, recentHashes);
         setWebItems(deduped);
         recordShownWebMemes(deduped);
         if (isManualDice) {
           onShowToast(
             deduped.length >= DISPLAY_LIMIT
               ? '🎲 Новая случайная подборка загружена!'
-              : `🎲 Найдено ${deduped.length} новых уникальных мемов`
+              : `🎲 Загружено ${deduped.length} мемов — повторы иногда разрешены`
           );
         }
       } else {
@@ -197,7 +228,6 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
 
   return (
     <div className="bg-neutral-900/90 border border-neutral-800 hover:border-rose-500/30 rounded-2xl p-2.5 sm:p-3 backdrop-blur shadow-md w-full h-full flex flex-col justify-between overflow-hidden min-h-0">
-      {/* Header: Title & Dice Button */}
       <div className="flex items-center justify-between gap-1.5 shrink-0 mb-1.5">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-black tracking-wide text-white uppercase font-['Anton',sans-serif]">
@@ -208,7 +238,6 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
           </span>
         </div>
 
-        {/* Dice Button (Игральная кость) */}
         <button
           onClick={() => fetchRandomMemes(searchQuery, true)}
           disabled={isLoading}
@@ -224,7 +253,6 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
         </button>
       </div>
 
-      {/* Search Input */}
       <form onSubmit={handleSearchSubmit} className="relative shrink-0 mb-1.5">
         <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
         <input
@@ -252,7 +280,6 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
         </button>
       </form>
 
-      {/* Memes List / Grid */}
       <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar">
         {error ? (
           <div className="text-center py-2 text-[10px] text-rose-400 bg-rose-950/20 rounded-xl border border-rose-900/40 p-2">
@@ -283,7 +310,6 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
                       : 'border-neutral-800/90 hover:border-rose-500/60 hover:bg-neutral-900'
                   }`}
                 >
-                  {/* Thumbnail */}
                   <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-neutral-900 mb-1 border border-neutral-800/80 shrink-0">
                     <img
                       src={item.thumbnailUrl || item.imageUrl}
@@ -302,12 +328,10 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
                     )}
                   </div>
 
-                  {/* Title */}
                   <h4 className="text-[9.5px] font-bold text-neutral-100 group-hover:text-rose-300 transition line-clamp-1 mb-1 leading-tight">
                     {item.title}
                   </h4>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-1 pt-0.5 border-t border-neutral-800/60 shrink-0">
                     <button
                       onClick={(e) => {
