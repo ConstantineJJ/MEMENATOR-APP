@@ -1,8 +1,8 @@
 {
-  "name": "Memenator",
+  "name": "MEMENATOR",
   "version": "0.9.0-beta.1",
   "releaseName": "MEMENATOR 0.9 Beta",
-  "description": "Memenator — умный генератор мемов с трендовыми онлайн-шаблонами, интеллектуальным анализом композиции кадра через Gemini, интерактивными сетками (правило третей, золотое сечение, безопасные зоны), обрезкой холста и богатой коллекцией стикеров.",
+  "description": "MEMENATOR is a fast AI-assisted meme studio with live web templates, editable captions, composition analysis, cropping, history, favorites, and bilingual English/Russian UI.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

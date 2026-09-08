@@ -47,5 +47,16 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [x] Add AI Meme Image Generation section (`ImageGenerationPanel`, `ImageGenerationModal`, `useImageGeneration` hook, `/api/generate-template-image` route). Users can generate new meme visuals either by text description, or by 1-click using suggested humor styles and magic caption punchlines from the right panel. Includes quota-safe local gallery storage (capped at 6 items), aspect ratio controls (1:1, 16:9, 9:16, 4:3), and direct application to the meme canvas.
 - [x] Keep editable meme history capped at the 10 most recent states.
 
+## P3 — mobile readiness baseline
+- [x] Make static HTML/OG metadata English-first and add `viewport-fit=cover` while preserving runtime RU/EN switching.
+- [x] Add a working-image memory guard before uploaded camera photos enter the editable canvas/history: 3072 px mobile/coarse-pointer long-side cap, 4096 px desktop cap, no upscaling/re-encoding for already-safe images.
+- [x] Add five named layout profiles (`phone-portrait`, `phone-landscape`, `tablet-portrait`, `tablet-landscape`, `desktop`) and keep one shared React component tree across all of them.
+- [x] Add responsive placement/scroll rules for the existing desktop panels rather than duplicating mobile components.
+- [x] Improve coarse-pointer ergonomics with touch-action rules and enlarged invisible hit targets around text/sticker controls and crop resize handles.
+- [x] Make phone dialogs full-screen with `100dvh`, safe-area handling and keyboard-friendly input sizing/scroll margins; keep tablet dialogs bounded to the dynamic viewport.
+- [x] Add automated tests for responsive profile boundaries and working-image resize math.
+- [x] Freeze major feature additions during mobile QA; `MOBILE_READINESS.md` is the source of truth for the manual viewport/device matrix.
+- [ ] Manual mobile QA PASS on representative phone/tablet portrait + landscape viewports/devices. Do not mark complete from CI alone.
+
 ## Verification rule
 For each non-trivial code pass: run TypeScript typecheck, automated tests, and production build before marking the item complete. Keep verification workflows read-only; do not use self-modifying GitHub Actions workflows.

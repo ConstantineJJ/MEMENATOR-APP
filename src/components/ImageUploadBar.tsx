@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
-import { Upload, Image as ImageIcon, CheckCircle, RefreshCw } from 'lucide-react';
+import React, { useCallback, useRef, useState } from 'react';
+import { Upload, RefreshCw, LoaderCircle } from 'lucide-react';
+import { normalizeImageFileForWorkingCanvas } from '../utils/imageHelper';
 
 interface ImageUploadBarProps {
   onUploadImage: (file: File) => void;
@@ -13,11 +14,23 @@ export const ImageUploadBar: React.FC<ImageUploadBarProps> = ({
   onResetOriginal,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const submitImage = useCallback(async (file: File) => {
+    if (!file.type.startsWith('image/') || isPreparing) return;
+    setIsPreparing(true);
+    try {
+      const normalizedFile = await normalizeImageFileForWorkingCanvas(file);
+      onUploadImage(normalizedFile);
+    } finally {
+      setIsPreparing(false);
+    }
+  }, [isPreparing, onUploadImage]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    if (!isPreparing) setIsDragging(true);
   };
 
   const handleDragLeave = () => {
@@ -27,18 +40,14 @@ export const ImageUploadBar: React.FC<ImageUploadBarProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      if (file.type.startsWith('image/')) {
-        onUploadImage(file);
-      }
-    }
+    const file = e.dataTransfer.files?.[0];
+    if (file) void submitImage(file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onUploadImage(e.target.files[0]);
-    }
+    const file = e.target.files?.[0];
+    if (file) void submitImage(file);
+    e.target.value = '';
   };
 
   return (
@@ -46,6 +55,7 @@ export const ImageUploadBar: React.FC<ImageUploadBarProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      aria-busy={isPreparing}
       className={`w-full rounded-2xl border transition-all px-3 py-1.5 backdrop-blur flex items-center justify-between gap-2.5 ${
         isDragging
           ? 'border-amber-400 bg-amber-500/20 shadow-lg'
@@ -62,7 +72,11 @@ export const ImageUploadBar: React.FC<ImageUploadBarProps> = ({
 
       <div className="flex items-center gap-2 min-w-0">
         <div className="w-6 h-6 rounded-lg bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0">
-          <Upload className="w-3.5 h-3.5" />
+          {isPreparing ? (
+            <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Upload className="w-3.5 h-3.5" />
+          )}
         </div>
         <div className="text-left min-w-0">
           <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
@@ -80,7 +94,8 @@ export const ImageUploadBar: React.FC<ImageUploadBarProps> = ({
         {isCustomUploaded && onResetOriginal && (
           <button
             onClick={onResetOriginal}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 transition cursor-pointer"
+            disabled={isPreparing}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-wait"
             title="Сбросить к исходному шаблону"
           >
             <RefreshCw className="w-3 h-3 text-neutral-400" />
@@ -89,9 +104,15 @@ export const ImageUploadBar: React.FC<ImageUploadBarProps> = ({
         )}
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex items-center justify-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-neutral-950 transition active:scale-95 shadow-sm cursor-pointer whitespace-nowrap"
+          disabled={isPreparing}
+          className="flex items-center justify-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-neutral-950 transition active:scale-95 shadow-sm cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-wait"
+          title={isPreparing ? 'Preparing image for editing' : undefined}
         >
-          <Upload className="w-3 h-3" />
+          {isPreparing ? (
+            <LoaderCircle className="w-3 h-3 animate-spin" />
+          ) : (
+            <Upload className="w-3 h-3" />
+          )}
           <span>Выбрать файл</span>
         </button>
       </div>

@@ -2,6 +2,31 @@
 
 :root {
   color-scheme: dark;
+  --memenator-safe-top: env(safe-area-inset-top, 0px);
+  --memenator-safe-right: env(safe-area-inset-right, 0px);
+  --memenator-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --memenator-safe-left: env(safe-area-inset-left, 0px);
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  overscroll-behavior-y: none;
+}
+
+button,
+[role='button'],
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
 }
 
 html[data-theme='light'] {
@@ -128,4 +153,352 @@ html[data-theme='light'] ::-webkit-scrollbar-thumb {
 
 html[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
   background: rgba(245, 158, 11, 0.55);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mobile readiness shell                                                     */
+/* -------------------------------------------------------------------------- */
+
+html[data-layout-profile]:not([data-layout-profile='desktop']) body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+html[data-layout-profile]:not([data-layout-profile='desktop']) #root > div:first-child {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 100dvh !important;
+  overflow: visible !important;
+  padding-left: var(--memenator-safe-left);
+  padding-right: var(--memenator-safe-right);
+  padding-bottom: var(--memenator-safe-bottom);
+}
+
+html[data-layout-profile]:not([data-layout-profile='desktop']) #root > div:first-child > header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  min-height: 3.5rem;
+  padding-left: max(0.75rem, var(--memenator-safe-left));
+  padding-right: max(0.75rem, var(--memenator-safe-right));
+}
+
+html[data-layout-profile]:not([data-layout-profile='desktop']) #root > div:first-child > main {
+  min-height: 0 !important;
+  overflow: visible !important;
+  align-items: start !important;
+}
+
+html[data-layout-profile]:not([data-layout-profile='desktop']) #root > div:first-child > main > aside,
+html[data-layout-profile]:not([data-layout-profile='desktop']) #root > div:first-child > main > section {
+  min-width: 0;
+}
+
+/* PHONE PORTRAIT — one primary creation flow, then AI, then library/history. */
+html[data-layout-profile='phone-portrait'] #root > div:first-child > main {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.625rem !important;
+  padding: 0.5rem !important;
+}
+
+html[data-layout-profile='phone-portrait'] #root > div:first-child > header h1 {
+  font-size: 1.25rem !important;
+  letter-spacing: 0.1em !important;
+}
+
+html[data-layout-profile='phone-portrait'] #root > div:first-child > main > section {
+  order: 1;
+  width: 100%;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+html[data-layout-profile='phone-portrait'] #root > div:first-child > main > section > div:nth-child(3) {
+  flex: none !important;
+  min-height: clamp(460px, 72dvh, 720px);
+  overscroll-behavior: contain;
+}
+
+html[data-layout-profile='phone-portrait'] #root > div:first-child > main > section > div:last-child {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+html[data-layout-profile='phone-portrait'] #root > div:first-child > main > aside:last-child {
+  order: 2;
+  width: 100%;
+  height: clamp(620px, 86dvh, 820px) !important;
+  min-height: 620px !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='phone-portrait'] #root > div:first-child > main > aside:first-child {
+  order: 3;
+  width: 100%;
+  height: auto !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+html[data-layout-profile='phone-portrait'] #root > div:first-child > main > aside:first-child > div:nth-child(1) {
+  height: 360px !important;
+  min-height: 360px !important;
+}
+
+html[data-layout-profile='phone-portrait'] #root > div:first-child > main > aside:first-child > div:nth-child(2) {
+  height: 260px !important;
+  min-height: 260px !important;
+}
+
+html[data-layout-profile='phone-portrait'] #root > div:first-child > main > aside:first-child > div:nth-child(3) {
+  height: 420px !important;
+  min-height: 420px !important;
+  flex: none !important;
+}
+
+/* PHONE LANDSCAPE — editor + active AI panel share the first screen. */
+html[data-layout-profile='phone-landscape'] #root > div:first-child > main {
+  display: grid !important;
+  grid-template-columns: minmax(0, 7fr) minmax(290px, 5fr) !important;
+  gap: 0.5rem !important;
+  padding: 0.5rem !important;
+}
+
+html[data-layout-profile='phone-landscape'] #root > div:first-child > main > section {
+  grid-column: 1;
+  grid-row: 1;
+  height: calc(100dvh - 4.5rem) !important;
+  min-height: 430px !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='phone-landscape'] #root > div:first-child > main > aside:last-child {
+  grid-column: 2;
+  grid-row: 1;
+  height: calc(100dvh - 4.5rem) !important;
+  min-height: 430px !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='phone-landscape'] #root > div:first-child > main > aside:first-child {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  height: 370px !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='phone-landscape'] #root > div:first-child > main > aside:first-child > div {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* TABLET PORTRAIT — editor first; support panels remain shared components. */
+html[data-layout-profile='tablet-portrait'] #root > div:first-child > main {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  padding: 0.75rem !important;
+}
+
+html[data-layout-profile='tablet-portrait'] #root > div:first-child > main > section {
+  order: 1;
+  width: 100%;
+  height: 72dvh !important;
+  min-height: 650px !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='tablet-portrait'] #root > div:first-child > main > aside:last-child {
+  order: 2;
+  width: 100%;
+  height: 650px !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='tablet-portrait'] #root > div:first-child > main > aside:first-child {
+  order: 3;
+  width: 100%;
+  height: 420px !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.625rem !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='tablet-portrait'] #root > div:first-child > main > aside:first-child > div {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* TABLET LANDSCAPE — desktop-light: workspace + AI, auxiliary library below. */
+html[data-layout-profile='tablet-landscape'] #root > div:first-child > main {
+  display: grid !important;
+  grid-template-columns: minmax(0, 8fr) minmax(320px, 4fr) !important;
+  gap: 0.625rem !important;
+  padding: 0.625rem !important;
+}
+
+html[data-layout-profile='tablet-landscape'] #root > div:first-child > main > section {
+  grid-column: 1;
+  grid-row: 1;
+  height: calc(100dvh - 5rem) !important;
+  min-height: 600px !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='tablet-landscape'] #root > div:first-child > main > aside:last-child {
+  grid-column: 2;
+  grid-row: 1;
+  height: calc(100dvh - 5rem) !important;
+  min-height: 600px !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='tablet-landscape'] #root > div:first-child > main > aside:first-child {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  height: 420px !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.625rem !important;
+  overflow: hidden !important;
+}
+
+html[data-layout-profile='tablet-landscape'] #root > div:first-child > main > aside:first-child > div {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* Compact preference controls keep the phone header from becoming a toolbar. */
+html[data-layout-profile^='phone'] #root > div[data-no-i18n] {
+  top: max(0.4rem, var(--memenator-safe-top)) !important;
+  right: max(0.4rem, var(--memenator-safe-right)) !important;
+  padding: 0.125rem !important;
+  gap: 0.125rem !important;
+}
+
+html[data-layout-profile^='phone'] #root > div[data-no-i18n] button {
+  width: 40px;
+  min-width: 40px;
+  height: 40px !important;
+  padding: 0 !important;
+  justify-content: center;
+}
+
+html[data-layout-profile^='phone'] #root > div[data-no-i18n] button span,
+html[data-layout-profile^='phone'] #root > div[data-no-i18n] > div {
+  display: none !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Touch / stylus ergonomics                                                  */
+/* -------------------------------------------------------------------------- */
+
+html[data-coarse-pointer='true'] button,
+html[data-coarse-pointer='true'] [role='button'] {
+  touch-action: manipulation;
+}
+
+html[data-coarse-pointer='true'] #root > div:first-child > header button,
+html[data-coarse-pointer='true'] #root > div:first-child > main > section > div:first-child button,
+html[data-coarse-pointer='true'] #root > div:first-child > main > aside:last-child button {
+  min-height: 40px;
+}
+
+html[data-coarse-pointer='true'] canvas {
+  touch-action: none;
+}
+
+html[data-coarse-pointer='true'] div[title*='изменения размера текста'],
+html[data-coarse-pointer='true'] div[title*='изменения масштаба'],
+html[data-coarse-pointer='true'] div[title*='resize' i],
+html[data-coarse-pointer='true'] div[title*='scale' i],
+html[data-coarse-pointer='true'] button[title*='кегль'],
+html[data-coarse-pointer='true'] button[title*='font size' i],
+html[data-coarse-pointer='true'] button[title*='Удалить этот текст'],
+html[data-coarse-pointer='true'] button[title*='delete this text' i],
+html[data-coarse-pointer='true'] button[title*='Удалить этот стикер'],
+html[data-coarse-pointer='true'] button[title*='delete this sticker' i],
+html[data-coarse-pointer='true'] div[aria-label*='размер области обрезки'],
+html[data-coarse-pointer='true'] div[aria-label*='resize crop' i] {
+  position: relative;
+}
+
+html[data-coarse-pointer='true'] div[title*='изменения размера текста']::after,
+html[data-coarse-pointer='true'] div[title*='изменения масштаба']::after,
+html[data-coarse-pointer='true'] div[title*='resize' i]::after,
+html[data-coarse-pointer='true'] div[title*='scale' i]::after,
+html[data-coarse-pointer='true'] button[title*='кегль']::after,
+html[data-coarse-pointer='true'] button[title*='font size' i]::after,
+html[data-coarse-pointer='true'] button[title*='Удалить этот текст']::after,
+html[data-coarse-pointer='true'] button[title*='delete this text' i]::after,
+html[data-coarse-pointer='true'] button[title*='Удалить этот стикер']::after,
+html[data-coarse-pointer='true'] button[title*='delete this sticker' i]::after,
+html[data-coarse-pointer='true'] div[aria-label*='размер области обрезки']::after,
+html[data-coarse-pointer='true'] div[aria-label*='resize crop' i]::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 999px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mobile dialogs, dynamic viewport and software keyboard                     */
+/* -------------------------------------------------------------------------- */
+
+html[data-layout-profile^='phone'] #root > div:first-child > div[class~='fixed'][class~='inset-0'][class~='z-50'] {
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  padding: var(--memenator-safe-top) 0 0 !important;
+  overscroll-behavior: contain;
+}
+
+html[data-layout-profile^='phone'] #root > div:first-child > div[class~='fixed'][class~='inset-0'][class~='z-50'] > div {
+  width: 100% !important;
+  max-width: none !important;
+  height: calc(100dvh - var(--memenator-safe-top)) !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  border-left-width: 0 !important;
+  border-right-width: 0 !important;
+  padding-bottom: var(--memenator-safe-bottom);
+  overscroll-behavior: contain;
+}
+
+html[data-layout-profile='tablet-portrait'] #root > div:first-child > div[class~='fixed'][class~='inset-0'][class~='z-50'] > div,
+html[data-layout-profile='tablet-landscape'] #root > div:first-child > div[class~='fixed'][class~='inset-0'][class~='z-50'] > div {
+  max-height: calc(100dvh - 2rem - var(--memenator-safe-top) - var(--memenator-safe-bottom)) !important;
+}
+
+html[data-layout-profile^='phone'] input,
+html[data-layout-profile^='phone'] textarea,
+html[data-layout-profile^='phone'] select {
+  font-size: 16px !important;
+  scroll-margin-bottom: 38dvh;
+}
+
+html[data-layout-profile^='phone'] textarea {
+  min-height: 44px;
+}
+
+html[data-layout-profile^='phone'] * {
+  scroll-padding-bottom: var(--memenator-safe-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
