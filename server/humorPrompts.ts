@@ -226,7 +226,11 @@ export const HUMOR_MECHANICS = [
 ];
 
 export function getHumorProfile(styleId: string): HumorStyleProfile {
-  return PROFILES[styleId] || PROFILES.trending;
+  const profile = PROFILES[styleId] ?? PROFILES.trending;
+  if (!profile) {
+    throw new Error('Default trending humor profile is missing.');
+  }
+  return profile;
 }
 
 function formatRecentIdeas(recentCaptions: RecentCaptionIdea[] = []): string {
