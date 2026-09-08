@@ -110,6 +110,7 @@ export function useMagicCaptions({
       const nextCaptions = selectBestCaptionSuggestions(rawCaptions, {
         limit: DISPLAY_LIMIT,
         recentCaptions: loadRecentCaptions(styleToUse),
+        styleId: styleToUse,
       });
 
       setCaptions(nextCaptions);
