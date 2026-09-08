@@ -38,6 +38,7 @@ export const CompositionAnalysisModal: React.FC<CompositionAnalysisModalProps> =
   if (!isOpen) return null;
 
   const score = analysis?.overallScore ?? 85;
+  const isFallback = analysis?.isFallback === true;
   const scoreColor =
     score >= 85 ? 'text-emerald-400' : score >= 70 ? 'text-amber-400' : 'text-rose-400';
   const scoreBg =
@@ -57,12 +58,20 @@ export const CompositionAnalysisModal: React.FC<CompositionAnalysisModalProps> =
                 <h2 className="text-base font-extrabold text-white">
                   Интеллектуальный анализ композиции
                 </h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">
-                  AI Vision
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    isFallback
+                      ? 'bg-cyan-400/10 text-cyan-300 border-cyan-400/20'
+                      : 'bg-amber-400/10 text-amber-400 border-amber-400/20'
+                  }`}
+                >
+                  {isFallback ? 'Эвристика' : 'AI Vision'}
                 </span>
               </div>
               <p className="text-xs text-neutral-400">
-                Оценка баланса, фокусных точек, безопасных зон и читаемости мема
+                {isFallback
+                  ? 'Приблизительная локальная оценка без фактического распознавания содержимого кадра'
+                  : 'Оценка баланса, фокусных точек, безопасных зон и читаемости мема'}
               </p>
             </div>
           </div>
@@ -91,12 +100,19 @@ export const CompositionAnalysisModal: React.FC<CompositionAnalysisModalProps> =
             </div>
           ) : analysis ? (
             <>
+              {isFallback && (
+                <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/8 px-4 py-3 text-xs text-cyan-100 leading-relaxed">
+                  <span className="font-bold text-cyan-300">Режим без AI Vision.</span>{' '}
+                  Сервис анализа сейчас недоступен или ограничен по квоте, поэтому значения ниже рассчитаны по общим правилам композиции и размерам кадра. Они не означают, что приложение действительно обнаружило лицо, взгляд или конкретный объект.
+                </div>
+              )}
+
               {/* Score & Balance Overview Card */}
               <div className={`p-4 rounded-2xl border ${scoreBg} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4`}>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wider">
-                      Оценка композиции
+                      {isFallback ? 'Приблизительная оценка композиции' : 'Оценка композиции'}
                     </span>
                     <span className="text-[11px] px-2 py-0.5 rounded-md bg-neutral-900 border border-neutral-700 text-neutral-300 font-medium">
                       {analysis.ruleOfThirdsAlignment === 'strong'
@@ -121,7 +137,11 @@ export const CompositionAnalysisModal: React.FC<CompositionAnalysisModalProps> =
                       <span className="text-sm font-bold text-neutral-500">/100</span>
                     </div>
                     <div className="text-[10px] text-neutral-400 font-medium">
-                      {score >= 85 ? 'Высокий потенциал' : 'Хороший баланс'}
+                      {isFallback
+                        ? 'Ориентировочно'
+                        : score >= 85
+                        ? 'Высокий потенциал'
+                        : 'Хороший баланс'}
                     </div>
                   </div>
                 </div>
@@ -261,7 +281,7 @@ export const CompositionAnalysisModal: React.FC<CompositionAnalysisModalProps> =
                 <div className="bg-neutral-950/60 border border-neutral-800/80 rounded-2xl p-3.5 space-y-2">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
                     <Eye className="w-3.5 h-3.5" />
-                    <span>Обнаруженные ключевые объекты</span>
+                    <span>{isFallback ? 'Предполагаемая фокусная область' : 'Обнаруженные ключевые объекты'}</span>
                   </div>
                   <div className="space-y-2 max-h-36 overflow-y-auto custom-scrollbar pr-1">
                     {analysis.focalSubjects.map((subj, idx) => (
@@ -278,7 +298,7 @@ export const CompositionAnalysisModal: React.FC<CompositionAnalysisModalProps> =
                         <p className="text-[11px] text-neutral-400 leading-snug">
                           {subj.description}
                         </p>
-                        {subj.gazeDirection && subj.gazeDirection !== 'none' && (
+                        {!isFallback && subj.gazeDirection && subj.gazeDirection !== 'none' && (
                           <div className="text-[10px] text-neutral-500 flex items-center gap-1">
                             <span>Направление взгляда:</span>
                             <span className="text-neutral-300 font-semibold">
@@ -341,7 +361,9 @@ export const CompositionAnalysisModal: React.FC<CompositionAnalysisModalProps> =
               <div className="bg-neutral-950/80 border border-neutral-800 rounded-2xl p-4 space-y-2.5">
                 <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
                   <Lightbulb className="w-4 h-4 text-amber-400" />
-                  <span>Рекомендации арт-директора по доработке</span>
+                  <span>
+                    {isFallback ? 'Общие рекомендации по композиции' : 'Рекомендации арт-директора по доработке'}
+                  </span>
                 </div>
                 <div className="space-y-2">
                   {analysis.recommendations.map((rec, i) => (
