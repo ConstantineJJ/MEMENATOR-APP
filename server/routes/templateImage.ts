@@ -45,7 +45,7 @@ function generateFallbackSvg(prompt: string, aspectRatio = '1:1'): string {
     '9:16': [675, 1200],
     '4:3': [960, 720],
   };
-  const [width, height] = dimensions[aspectRatio] || dimensions['1:1'];
+  const [width, height] = dimensions[aspectRatio] ?? dimensions['1:1'] ?? [800, 800];
   const cleanPrompt = escapeXml(prompt.trim().slice(0, 90) || 'Meme template');
   const seed = promptSeed(prompt);
   const centerX = width / 2;
@@ -91,8 +91,10 @@ function parseSourceImage(value: unknown, fallbackMimeType: unknown): { data: st
   if (typeof value !== 'string' || !value.trim()) return null;
   const source = value.trim();
   const dataUrl = source.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s);
-  if (dataUrl) {
-    return { mimeType: dataUrl[1], data: dataUrl[2] };
+  const matchedMimeType = dataUrl?.[1];
+  const matchedData = dataUrl?.[2];
+  if (matchedMimeType && matchedData) {
+    return { mimeType: matchedMimeType, data: matchedData };
   }
 
   if (/^[a-zA-Z0-9+/=\s]+$/.test(source) && source.length > 64) {

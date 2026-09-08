@@ -33,7 +33,7 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [x] Split oversized `server.ts`, `MemeCanvas.tsx`, and `App.tsx` into focused modules without changing the main product flow. `App.tsx` delegates stateful concerns to dedicated hooks; `MemeCanvas` delegates toolbar/export/guides; and the former ~98 KB `server.ts` is now a small bootstrap that registers modular web-meme, magic-caption, composition and image-template routes plus shared Gemini utilities.
 - [x] Deduplicate shared AI style configuration between the compact panel and full caption modal.
 - [x] Enable full TypeScript `strict` mode. React/ReactDOM declarations are explicit dev dependencies, `noImplicitAny` exposed and fixed the untyped composition fallback, `strictNullChecks` passed cleanly, and the final consolidated `strict: true` configuration passes CI.
-- [ ] Prepare for `noUncheckedIndexedAccess` as an extra hardening step beyond `strict`. A diagnostic pass found unchecked array/record lookups in the aggregator, App defaults, fallback caption tables, canvas helpers, perceptual hash/sticker rendering and a few tests; keep this separate so `main` stays green while those guards are tightened deliberately.
+- [x] Enable `noUncheckedIndexedAccess` as an extra hardening layer beyond `strict`. Unsafe array/record lookups in backend fallbacks, image parsing, App text-box defaults, meme feed memory, localization regex captures, canvas/hash helpers, sticker rendering and tests now have explicit guards or non-empty/tuple invariants, and the full typecheck/test/build pipeline passes with the flag enabled.
 - [x] Add permanent read-only typecheck/build CI safety net.
 - [x] Add initial automated tests to the CI safety net; aggregator, perceptual hash, caption curation and humor-prompt variety now have coverage.
 - [x] Read `PORT` from the environment.
@@ -45,6 +45,7 @@ Persistent checklist from the 2026-09-08 full repository review. This file is th
 - [x] Change the backend generation contract from five candidates to exactly three stronger finalists. The prompt asks the model to silently brainstorm at least nine angles, self-filter them, and return only the best three.
 - [x] Add style-level variety rules and cross-generation anti-repeat feedback. Recent caption ideas are sent back to the server per style; final variants must use different mechanics and substantially different premises, with extra domain rotation rules for Millennials.
 - [x] Add AI Meme Image Generation section (`ImageGenerationPanel`, `ImageGenerationModal`, `useImageGeneration` hook, `/api/generate-template-image` route). Users can generate new meme visuals either by text description, or by 1-click using suggested humor styles and magic caption punchlines from the right panel. Includes quota-safe local gallery storage (capped at 6 items), aspect ratio controls (1:1, 16:9, 9:16, 4:3), and direct application to the meme canvas.
+- [x] Keep editable meme history capped at the 10 most recent states.
 
 ## Verification rule
 For each non-trivial code pass: run TypeScript typecheck, automated tests, and production build before marking the item complete. Keep verification workflows read-only; do not use self-modifying GitHub Actions workflows.

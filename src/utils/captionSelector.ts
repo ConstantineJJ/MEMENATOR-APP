@@ -121,7 +121,9 @@ export function selectBestCaptionSuggestions(
       }
     });
 
-    selected.push(remaining.splice(bestIndex, 1)[0]);
+    const [bestCandidate] = remaining.splice(bestIndex, 1);
+    if (!bestCandidate) break;
+    selected.push(bestCandidate);
   }
 
   return selected;

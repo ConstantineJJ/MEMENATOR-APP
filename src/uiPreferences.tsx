@@ -501,7 +501,8 @@ const originalText = new WeakMap<Text, string>();
 const originalAttributes = new WeakMap<Element, Map<string, string>>();
 const translatedSystemFormValues = new WeakMap<HTMLInputElement | HTMLTextAreaElement, string>();
 
-function translateStyleName(value: string): string {
+function translateStyleName(value?: string): string {
+  if (!value) return '';
   return EXACT_TRANSLATIONS[value] || value;
 }
 

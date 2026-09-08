@@ -50,7 +50,7 @@ test('recent captions are penalized in favor of fresh concepts', () => {
     recentCaptions: recent,
   });
 
-  assert.equal(selected[0].headline, 'Дискета');
+  assert.equal(selected.at(0)?.headline, 'Дискета');
 });
 
 test('millennial selector downranks exhausted nostalgia clichés', () => {
@@ -71,5 +71,5 @@ test('millennial selector downranks exhausted nostalgia clichés', () => {
     styleId: 'millennials',
   });
 
-  assert.equal(selected[0].headline, 'Фотолаборатория');
+  assert.equal(selected.at(0)?.headline, 'Фотолаборатория');
 });

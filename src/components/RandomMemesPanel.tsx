@@ -163,8 +163,8 @@ export const RandomMemesPanel: React.FC<RandomMemesPanelProps> = ({
 
     try {
       const excludes = getShownWebMemeExcludes();
-      const recentIds = excludes.excludeIds.slice(-RECENT_EXCLUDE_LIMIT);
-      const recentHashes = excludes.excludeHashes.slice(-RECENT_EXCLUDE_LIMIT);
+      const recentIds = excludes.ids.slice(-RECENT_EXCLUDE_LIMIT);
+      const recentHashes = excludes.hashes.slice(-RECENT_EXCLUDE_LIMIT);
       const params = new URLSearchParams();
       params.set('limit', String(FETCH_CANDIDATE_LIMIT));
       if (query.trim()) params.set('query', query.trim());

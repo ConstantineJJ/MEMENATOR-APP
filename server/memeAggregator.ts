@@ -18,11 +18,16 @@ export function normalizeTitle(title: string): string {
     .trim();
 }
 
+function stripUrlQuery(url: string): string {
+  const [baseUrl = url] = url.split('?');
+  return baseUrl.toLowerCase();
+}
+
 // Simple deterministic hash for deduplication across different URLs pointing to same title/file
 export function computeImageSignature(title: string, url: string): string {
   const normTitle = normalizeTitle(title);
   // Extract filename or last path component
-  const cleanUrl = url.split('?')[0].toLowerCase();
+  const cleanUrl = stripUrlQuery(url);
   const filename = cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
   return `${normTitle.substring(0, 30)}_${filename}`;
 }
@@ -269,12 +274,13 @@ const CURATED_MEME_TEMPLATES: WebMemeItem[] = [
 async function fetchFromMemeApi(): Promise<WebMemeItem[]> {
   const cacheKey = 'meme_api';
   const now = Date.now();
-  if (providerCache[cacheKey] && now - providerCache[cacheKey].timestamp < CACHE_TTL_MS) {
-    return providerCache[cacheKey].items;
+  const cached = providerCache[cacheKey];
+  if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+    return cached.items;
   }
 
   const subreddits = ['memes', 'dankmemes', 'wholesomememes', 'me_irl', 'ProgrammerHumor'];
-  const randomSub = subreddits[Math.floor(Math.random() * subreddits.length)];
+  const randomSub = subreddits[Math.floor(Math.random() * subreddits.length)] ?? 'memes';
   const url = `https://meme-api.com/gimme/${randomSub}/20`;
 
   try {
@@ -327,8 +333,9 @@ async function fetchFromMemeApi(): Promise<WebMemeItem[]> {
 async function fetchFromImgflip(): Promise<WebMemeItem[]> {
   const cacheKey = 'imgflip';
   const now = Date.now();
-  if (providerCache[cacheKey] && now - providerCache[cacheKey].timestamp < CACHE_TTL_MS * 4) {
-    return providerCache[cacheKey].items;
+  const cached = providerCache[cacheKey];
+  if (cached && now - cached.timestamp < CACHE_TTL_MS * 4) {
+    return cached.items;
   }
 
   try {
@@ -369,14 +376,15 @@ async function fetchFromImgflip(): Promise<WebMemeItem[]> {
 async function fetchFromReddit(): Promise<WebMemeItem[]> {
   const cacheKey = 'reddit';
   const now = Date.now();
-  if (providerCache[cacheKey] && now - providerCache[cacheKey].timestamp < CACHE_TTL_MS) {
-    return providerCache[cacheKey].items;
+  const cached = providerCache[cacheKey];
+  if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+    return cached.items;
   }
 
   const subreddits = ['memes', 'dankmemes', 'me_irl', 'wholesomememes', 'ProgrammerHumor'];
-  const chosenSub = subreddits[Math.floor(Math.random() * subreddits.length)];
+  const chosenSub = subreddits[Math.floor(Math.random() * subreddits.length)] ?? 'memes';
   const sortModes = ['hot', 'rising', 'new'];
-  const chosenSort = sortModes[Math.floor(Math.random() * sortModes.length)];
+  const chosenSort = sortModes[Math.floor(Math.random() * sortModes.length)] ?? 'hot';
 
   const url = `https://www.reddit.com/r/${chosenSub}/${chosenSort}.json?limit=25`;
 
@@ -387,7 +395,6 @@ async function fetchFromReddit(): Promise<WebMemeItem[]> {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 (MemenatorApp/2.0)',
       },
     });
-
     if (!res.ok) return [];
     const data = await res.json();
     const posts = data?.data?.children;
@@ -524,7 +531,7 @@ export async function getAggregatedWebMemes(options: AggregatorOptions): Promise
     const normTitle = normalizeTitle(item.title);
     const itemHash = (item.hash || computeImageSignature(item.title, item.imageUrl)).toLowerCase();
     const itemId = item.id.toLowerCase();
-    const imgUrl = item.imageUrl.toLowerCase().split('?')[0];
+    const imgUrl = stripUrlQuery(item.imageUrl);
 
     // Check against client's exclude list
     if (excludeIdsSet.has(itemId) || excludeHashesSet.has(itemHash)) {
@@ -552,7 +559,7 @@ export async function getAggregatedWebMemes(options: AggregatorOptions): Promise
     const backupPool: WebMemeItem[] = [];
     for (const item of fullPool) {
       const itemHash = (item.hash || computeImageSignature(item.title, item.imageUrl)).toLowerCase();
-      const imgUrl = item.imageUrl.toLowerCase().split('?')[0];
+      const imgUrl = stripUrlQuery(item.imageUrl);
       if (!seenHashes.has(itemHash) && !seenImageUrls.has(imgUrl)) {
         seenHashes.add(itemHash);
         seenImageUrls.add(imgUrl);
@@ -570,18 +577,19 @@ export async function getAggregatedWebMemes(options: AggregatorOptions): Promise
   // Group by provider to avoid showing 3 of the exact same provider if multiple are available
   const byProvider: Record<string, WebMemeItem[]> = {};
   for (const item of shuffled) {
-    if (!byProvider[item.provider]) byProvider[item.provider] = [];
-    byProvider[item.provider].push(item);
+    (byProvider[item.provider] ??= []).push(item);
   }
 
   const providerKeys = Object.keys(byProvider);
   let providerIdx = 0;
   while (selected.length < limit && selected.length < shuffled.length) {
+    if (providerKeys.length === 0) break;
     const currentProv = providerKeys[providerIdx % providerKeys.length];
+    if (!currentProv) break;
     const provList = byProvider[currentProv];
     if (provList && provList.length > 0) {
-      const item = provList.shift()!;
-      selected.push(item);
+      const item = provList.shift();
+      if (item) selected.push(item);
     } else {
       // Pick any remaining item from shuffled
       const remaining = shuffled.find((it) => !selected.includes(it));

@@ -118,7 +118,7 @@ export const ImageGenerationPanel: React.FC<ImageGenerationPanelProps> = ({
 
   const currentStyleDef = useMemo(() => getAiStyle(selectedStyle), [selectedStyle]);
   const stylePresets = useMemo(() => {
-    return STYLE_PROMPT_PRESETS[selectedStyle] || STYLE_PROMPT_PRESETS.trending;
+    return STYLE_PROMPT_PRESETS[selectedStyle] ?? STYLE_PROMPT_PRESETS.trending ?? [];
   }, [selectedStyle]);
 
   const StyleIcon = STYLE_ICONS[selectedStyle] || Wand2;
@@ -174,7 +174,7 @@ export const ImageGenerationPanel: React.FC<ImageGenerationPanelProps> = ({
 
   const handleRandomPrompt = () => {
     const rand = RANDOM_MEME_PROMPTS[Math.floor(Math.random() * RANDOM_MEME_PROMPTS.length)];
-    setPrompt(rand);
+    if (rand) setPrompt(rand);
   };
 
   // Phrases from canvas
