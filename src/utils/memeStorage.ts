@@ -9,7 +9,7 @@ import {
 const HISTORY_KEY = 'memenator_meme_history_v1';
 const FAVORITES_KEY = 'memenator_meme_favorites_v1';
 const SHOWN_WEB_MEMES_KEY = 'memenator_shown_web_memes_v1';
-const MAX_HISTORY_ITEMS = 30;
+const MAX_HISTORY_ITEMS = 10;
 const MAX_EXCLUDE_ITEMS = 150;
 const HISTORY_IMAGE_KEY_PREFIX = 'history:';
 const HISTORY_IMAGE_REF_PREFIX = 'idb://memenator/history/';
