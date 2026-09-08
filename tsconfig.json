@@ -28,6 +28,7 @@
     "strictFunctionTypes": true,
     "noImplicitThis": true,
     "noImplicitAny": true,
+    "strictNullChecks": true,
     "noUncheckedSideEffectImports": true
   }
 }
