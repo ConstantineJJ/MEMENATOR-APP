@@ -143,13 +143,14 @@ function drawWatermelonMascot(ctx: CanvasRenderingContext2D, scale: number) {
   ctx.fill();
 
   ctx.fillStyle = '#18181b';
-  [
+  const seeds: Array<[number, number, number]> = [
     [-2, -19, 2.2],
     [-16, 10, 2.4],
     [18, 10, 2.4],
     [-7, 20, 2.1],
     [8, 20, 2.1],
-  ].forEach(([x, y, r]) => {
+  ];
+  seeds.forEach(([x, y, r]) => {
     ctx.beginPath();
     ctx.ellipse(x * s, y * s, r * s, r * 1.45 * s, 0, 0, Math.PI * 2);
     ctx.fill();
