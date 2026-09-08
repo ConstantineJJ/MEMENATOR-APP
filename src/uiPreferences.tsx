@@ -141,6 +141,30 @@ const shouldIgnoreNode = (node: Text) => {
   return Boolean(parent.closest('canvas, input, textarea, [contenteditable="true"], [data-no-i18n], script, style'));
 };
 
+const resolveTextSource = (node: Text) => {
+  const current = node.nodeValue || '';
+  const saved = originalText.get(node);
+  if (saved === undefined) {
+    originalText.set(node, current);
+    return current;
+  }
+
+  const savedTranslation = translateDynamicText(saved);
+  if (current !== saved && current !== savedTranslation) {
+    originalText.set(node, current);
+    return current;
+  }
+
+  return saved;
+};
+
+const translateTextNode = (node: Text, language: UiLanguage) => {
+  if (shouldIgnoreNode(node)) return;
+  const source = resolveTextSource(node);
+  const next = language === 'en' ? translateDynamicText(source) : source;
+  if (node.nodeValue !== next) node.nodeValue = next;
+};
+
 const translateElementAttributes = (element: Element, language: UiLanguage) => {
   if (element.closest('[data-no-i18n]')) return;
   const attrs = ['placeholder', 'title', 'aria-label'] as const;
@@ -154,7 +178,14 @@ const translateElementAttributes = (element: Element, language: UiLanguage) => {
       originals = new Map<string, string>();
       originalAttributes.set(element, originals);
     }
-    if (!originals.has(attr)) originals.set(attr, current);
+
+    const saved = originals.get(attr);
+    if (saved === undefined) {
+      originals.set(attr, current);
+    } else {
+      const savedTranslation = ATTRIBUTE_TRANSLATIONS[saved] || EXACT_TRANSLATIONS[saved] || saved;
+      if (current !== saved && current !== savedTranslation) originals.set(attr, current);
+    }
 
     const source = originals.get(attr) || current;
     const translated = language === 'en' ? ATTRIBUTE_TRANSLATIONS[source] || EXACT_TRANSLATIONS[source] || source : source;
@@ -166,13 +197,7 @@ const translateTree = (root: ParentNode, language: UiLanguage) => {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let node = walker.nextNode();
   while (node) {
-    const textNode = node as Text;
-    if (!shouldIgnoreNode(textNode)) {
-      if (!originalText.has(textNode)) originalText.set(textNode, textNode.nodeValue || '');
-      const source = originalText.get(textNode) || '';
-      const next = language === 'en' ? translateDynamicText(source) : source;
-      if (textNode.nodeValue !== next) textNode.nodeValue = next;
-    }
+    translateTextNode(node as Text, language);
     node = walker.nextNode();
   }
 
@@ -195,26 +220,35 @@ export const UiPreferencesProvider: React.FC<React.PropsWithChildren> = ({ child
     document.documentElement.lang = language;
     document.documentElement.dataset.language = language;
 
-    const apply = () => translateTree(document.body, language);
-    apply();
+    translateTree(document.body, language);
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
+        if (mutation.type === 'characterData') {
+          translateTextNode(mutation.target as Text, language);
+          continue;
+        }
+
+        if (mutation.type === 'attributes' && mutation.target instanceof Element) {
+          translateElementAttributes(mutation.target, language);
+          continue;
+        }
+
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.TEXT_NODE) {
-            const text = node as Text;
-            if (!shouldIgnoreNode(text)) {
-              if (!originalText.has(text)) originalText.set(text, text.nodeValue || '');
-              const source = originalText.get(text) || '';
-              const next = language === 'en' ? translateDynamicText(source) : source;
-              if (text.nodeValue !== next) text.nodeValue = next;
-            }
+            translateTextNode(node as Text, language);
           } else if (node instanceof Element) {
             translateTree(node, language);
           }
         });
       }
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['placeholder', 'title', 'aria-label'],
+    });
     return () => observer.disconnect();
   }, [language]);
 
