@@ -28,16 +28,8 @@ import { getImagePayloadFromUrl } from './utils/imageHelper';
 import { saveMemeToHistory } from './utils/memeStorage';
 import { getIndexedValue, putIndexedValue } from './utils/indexedDbStorage';
 import { generateMemeThumbnail } from './utils/thumbnailGenerator';
+import { MemeHistorySnapshot, useMemeUndoHistory } from './hooks/useMemeUndoHistory';
 import { Sparkles, CheckCircle, Crop, Undo2, Redo2, RotateCcw, Target } from 'lucide-react';
-
-interface HistoryState {
-  textBoxes: TextBox[];
-  stickers: MemeSticker[];
-  filter: MemeFilter;
-  filterIntensity?: number;
-  watermark: boolean;
-  activeImageSrc: string;
-}
 
 interface DraftState {
   textBoxes: TextBox[];
@@ -128,12 +120,6 @@ export default function App() {
   const [isAnalyzingComposition, setIsAnalyzingComposition] = useState(false);
   const [isCompositionModalOpen, setIsCompositionModalOpen] = useState(false);
   const [guideType, setGuideType] = useState<CompositionGuideType>('none');
-
-  // Undo / Redo History Stack
-  const [history, setHistory] = useState<HistoryState[]>([]);
-  const [historyIndex, setHistoryIndex] = useState<number>(-1);
-  const isUndoRedoAction = useRef(false);
-  const lastPushedRef = useRef<string>('');
   const lastAnalyzedSrcRef = useRef<string>('');
   const captionRequestInFlightRef = useRef(false);
 
@@ -148,121 +134,43 @@ export default function App() {
   const activeMemeIdRef = useRef<string | undefined>(undefined);
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 2800);
-  };
-
-  // Push current state to undo/redo history
-  const pushToHistory = useCallback(
-    (newState: HistoryState) => {
-      if (isUndoRedoAction.current) {
-        isUndoRedoAction.current = false;
-        return;
-      }
-      setHistory((prev) => {
-        const next = prev.slice(0, historyIndex + 1);
-        if (next.length >= 25) {
-          next.shift();
-        }
-        return [...next, newState];
-      });
-      setHistoryIndex((prev) => Math.min(prev + 1, 24));
-    },
-    [historyIndex]
-  );
-
-  // Record initial state in history once
-  useEffect(() => {
-    if (history.length === 0) {
-      const initialState: HistoryState = {
-        textBoxes,
-        stickers,
-        filter,
-        filterIntensity,
-        watermark,
-        activeImageSrc,
-      };
-      lastPushedRef.current = JSON.stringify(initialState);
-      setHistory([initialState]);
-      setHistoryIndex(0);
-    }
   }, []);
 
-  // Record history on meaningful changes (debounced)
-  useEffect(() => {
-    if (isUndoRedoAction.current) {
-      isUndoRedoAction.current = false;
-      return;
-    }
-    const stateJson = JSON.stringify({ textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc });
-    if (stateJson === lastPushedRef.current) return;
+  const applyHistorySnapshot = useCallback((targetState: MemeHistorySnapshot) => {
+    setTextBoxes(targetState.textBoxes);
+    setStickrs(targetState.stickers);
+    setFilter(targetState.filter);
+    setFilterIntensity(targetState.filterIntensity ?? 100);
+    setWatermark(targetState.watermark);
+    setActiveImageSrc(targetState.activeImageSrc);
+  }, []);
 
-    const timer = setTimeout(() => {
-      lastPushedRef.current = stateJson;
-      pushToHistory({ textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc });
-    }, 450);
+  const currentHistorySnapshot: MemeHistorySnapshot = {
+    textBoxes,
+    stickers,
+    filter,
+    filterIntensity,
+    watermark,
+    activeImageSrc,
+  };
 
-    return () => clearTimeout(timer);
-  }, [textBoxes, stickers, filter, filterIntensity, watermark, activeImageSrc, pushToHistory]);
-
-  // Undo Action
-  const handleUndo = useCallback(() => {
-    if (historyIndex > 0) {
-      isUndoRedoAction.current = true;
-      const targetState = history[historyIndex - 1];
-      setHistoryIndex(historyIndex - 1);
-      setTextBoxes(targetState.textBoxes);
-      setStickrs(targetState.stickers);
-      setFilter(targetState.filter);
-      setFilterIntensity(targetState.filterIntensity ?? 100);
-      setWatermark(targetState.watermark);
-      setActiveImageSrc(targetState.activeImageSrc);
-      showToast('Действие отменено (Undo)');
-    }
-  }, [history, historyIndex]);
-
-  // Redo Action
-  const handleRedo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      isUndoRedoAction.current = true;
-      const targetState = history[historyIndex + 1];
-      setHistoryIndex(historyIndex + 1);
-      setTextBoxes(targetState.textBoxes);
-      setStickrs(targetState.stickers);
-      setFilter(targetState.filter);
-      setFilterIntensity(targetState.filterIntensity ?? 100);
-      setWatermark(targetState.watermark);
-      setActiveImageSrc(targetState.activeImageSrc);
-      showToast('Действие повторено (Redo)');
-    }
-  }, [history, historyIndex]);
-
-  // Global Keyboard Shortcuts (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-        return;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        if (e.shiftKey) {
-          e.preventDefault();
-          handleRedo();
-        } else {
-          e.preventDefault();
-          handleUndo();
-        }
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        handleRedo();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
+  const {
+    history,
+    historyIndex,
+    canUndo,
+    canRedo,
+    recordSnapshot: pushToHistory,
+    undo: handleUndo,
+    redo: handleRedo,
+  } = useMemeUndoHistory({
+    currentSnapshot: currentHistorySnapshot,
+    applySnapshot: applyHistorySnapshot,
+    onUndo: () => showToast('Действие отменено (Undo)'),
+    onRedo: () => showToast('Действие повторено (Redo)'),
+  });
 
   // Autosave Draft to IndexedDB so large uploaded photos do not exhaust localStorage.
   useEffect(() => {
@@ -328,7 +236,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showToast]);
 
   // Auto-record to Meme History list for the "Лента" -> "История" tab
   useEffect(() => {
@@ -641,7 +549,7 @@ export default function App() {
       captionRequestInFlightRef.current = false;
       setIsGeneratingCaptions(false);
     }
-  }, [activeImageSrc, selectedStyle, customContext, compositionAnalysis]);
+  }, [activeImageSrc, selectedStyle, customContext, compositionAnalysis, showToast]);
 
   // Open AI Suggestions panel & trigger generation
   const handleOpenMagicCaptions = () => {
@@ -896,8 +804,8 @@ export default function App() {
               onOpenMagicCaptions={handleOpenMagicCaptions}
               onOpenCrop={() => setIsCropOpen(true)}
               isGeneratingCaptions={isGeneratingCaptions}
-              canUndo={historyIndex > 0}
-              canRedo={historyIndex < history.length - 1}
+              canUndo={canUndo}
+              canRedo={canRedo}
               onUndo={handleUndo}
               onRedo={handleRedo}
               isDraftSaved={isDraftSaved}
