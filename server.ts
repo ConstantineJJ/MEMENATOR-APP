@@ -4,10 +4,11 @@ import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import { getAggregatedWebMemes } from './server/memeAggregator';
+import { proxyExternalImage } from './server/imageProxy';
 
 dotenv.config();
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -48,7 +49,7 @@ async function callWithRetry<T>(fn: () => Promise<T>, maxRetries = 2, delayMs = 
     } catch (err: any) {
       lastError = err;
       const msg = parseErrorMessage(err).toLowerCase();
-      const isTransient = msg.includes('503') || msg.includes('high demand') || msg.includes('unavailable') || msg.includes('overloaded');
+      const isTransient = msg.includes('503') || msg.includes('429') || msg.includes('resource_exhausted') || msg.includes('high demand') || msg.includes('unavailable') || msg.includes('overloaded');
       if (isTransient && attempt < maxRetries) {
         await wait(delayMs * (attempt + 1));
         continue;
@@ -922,30 +923,9 @@ async function startServer() {
     res.json({ status: 'ok', timestamp: Date.now() });
   });
 
-  // Proxy external images to prevent canvas CORS tainting
-  app.get('/api/proxy-image', async (req, res) => {
-    try {
-      const imageUrl = req.query.url as string;
-      if (!imageUrl) {
-        return res.status(400).json({ error: 'url query parameter is required.' });
-      }
-
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        return res.status(response.status).json({ error: 'Failed to fetch external image.' });
-      }
-
-      const contentType = response.headers.get('content-type') || 'image/jpeg';
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.send(buffer);
-    } catch (_err: any) {
-      res.status(500).json({ error: 'Error proxying image.' });
-    }
-  });
+  // Proxy external images through a strict allowlist, redirect validation,
+  // MIME validation, timeout protection and a hard response-size cap.
+  app.get('/api/proxy-image', proxyExternalImage);
 
   // Curated viral internet templates with verified high-res assets and tags
   const INTERNET_TRENDING_TEMPLATES = [
