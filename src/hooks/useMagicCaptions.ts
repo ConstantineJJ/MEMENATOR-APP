@@ -35,9 +35,10 @@ function rememberCaptions(style: string, captions: CaptionSuggestion[]) {
 }
 
 /**
- * Owns Gemini caption state and the in-flight request guard. The model can
- * return a wider candidate pool, while the hook curates it down to three
- * stronger and less repetitive suggestions for the user.
+ * Owns Gemini caption state and the in-flight request guard. The server returns
+ * three internally curated finalists; the client still applies a lightweight
+ * diversity pass and remembers recent ideas per style so consecutive requests
+ * can explicitly tell the server what not to repeat.
  */
 export function useMagicCaptions({
   activeImageSrc,
@@ -85,6 +86,7 @@ export function useMagicCaptions({
           }
         : undefined;
 
+      const recentForStyle = loadRecentCaptions(styleToUse);
       const response = await fetch('/api/magic-caption', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -94,6 +96,12 @@ export function useMagicCaptions({
           style: styleToUse,
           customContext: customContext.trim(),
           compositionContext: compositionPayload,
+          recentCaptions: recentForStyle.map((caption) => ({
+            headline: caption.headline,
+            topText: caption.topText,
+            bottomText: caption.bottomText,
+            humorMechanic: caption.humorMechanic,
+          })),
         }),
       });
 
@@ -109,7 +117,7 @@ export function useMagicCaptions({
       const rawCaptions = data.captions as CaptionSuggestion[];
       const nextCaptions = selectBestCaptionSuggestions(rawCaptions, {
         limit: DISPLAY_LIMIT,
-        recentCaptions: loadRecentCaptions(styleToUse),
+        recentCaptions: recentForStyle,
         styleId: styleToUse,
       });
 
