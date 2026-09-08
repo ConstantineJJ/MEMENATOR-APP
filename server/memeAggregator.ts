@@ -503,14 +503,11 @@ export async function getAggregatedWebMemes(options: AggregatorOptions): Promise
 
   // Optional Query Filter
   if (query) {
-    const matched = fullPool.filter((item) => {
+    fullPool = fullPool.filter((item) => {
       const matchTitle = item.title.toLowerCase().includes(query);
-      const matchTags = item.tags?.some((t) => t.toLowerCase().includes(query));
+      const matchTags = item.tags?.some((tag) => tag.toLowerCase().includes(query));
       return matchTitle || matchTags;
     });
-    if (matched.length > 0) {
-      fullPool = matched;
-    }
   }
 
   // Deduplication Phase:
@@ -549,8 +546,9 @@ export async function getAggregatedWebMemes(options: AggregatorOptions): Promise
   }
 
   // If uniquePool is smaller than limit due to strict exclusion, loosen exclusion of client history
-  let finalSelectionPool = uniquePool;
+  let finalSelectionPool = [...uniquePool];
   if (finalSelectionPool.length < limit) {
+    const needed = limit - finalSelectionPool.length;
     const backupPool: WebMemeItem[] = [];
     for (const item of fullPool) {
       const itemHash = (item.hash || computeImageSignature(item.title, item.imageUrl)).toLowerCase();
@@ -559,9 +557,10 @@ export async function getAggregatedWebMemes(options: AggregatorOptions): Promise
         seenHashes.add(itemHash);
         seenImageUrls.add(imgUrl);
         backupPool.push(item);
+        if (backupPool.length >= needed) break;
       }
     }
-    finalSelectionPool = backupPool;
+    finalSelectionPool = [...finalSelectionPool, ...backupPool];
   }
 
   // Balanced selection: try to pick diverse providers across the output

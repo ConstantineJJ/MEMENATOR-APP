@@ -24,7 +24,7 @@ export type MemeProvider = 'reddit' | 'imgflip' | 'meme_api' | 'imgur' | 'curate
 export interface WebMemeItem {
   id: string;
   provider: MemeProvider;
-  sourceId: string;
+  sourceId?: string;
   title: string;
   imageUrl: string;
   thumbnailUrl: string;
@@ -32,7 +32,7 @@ export interface WebMemeItem {
   author?: string;
   createdAt?: number;
   nsfw?: boolean;
-  hash: string;
+  hash?: string;
   tags?: string[];
   defaultTopText?: string;
   defaultBottomText?: string;
@@ -55,14 +55,20 @@ export interface SavedMemeState {
 
 export interface FavoriteWebTemplate {
   id: string;
-  name: string;
-  url: string;
+  // Canonical fields used when restoring a web favorite.
+  title: string;
+  imageUrl: string;
   thumbnailUrl: string;
   source: string;
   provider: string;
+  sourceId?: string;
+  hash?: string;
   defaultTopText?: string;
   defaultBottomText?: string;
   addedAt: number;
+  // Legacy aliases kept temporarily so existing localStorage entries can migrate safely.
+  name?: string;
+  url?: string;
 }
 
 export interface CaptionSuggestion {

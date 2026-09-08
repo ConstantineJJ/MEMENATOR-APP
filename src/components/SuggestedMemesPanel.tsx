@@ -70,8 +70,9 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
   };
 
   const handleStyleClick = (styleId: string) => {
+    // App owns the style-change side effect and triggers exactly one generation request.
+    // Keeping generation in one place prevents duplicate Gemini calls per click.
     onSelectStyle(styleId);
-    onGenerate(styleId);
   };
 
   return (

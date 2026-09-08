@@ -2,8 +2,9 @@ import { TextBox, MemeSticker, MemeFilter } from '../types';
 import { drawMemeOnCanvas } from './canvasHelper';
 
 /**
- * Generates a compact dataURL thumbnail from the current meme canvas state.
- * Gracefully falls back to raw imageSrc if cross-origin canvas security triggers.
+ * Generates a genuinely compact dataURL thumbnail from the current meme state.
+ * drawMemeOnCanvas intentionally renders at export quality, so we render to a
+ * temporary full-quality canvas first and then downscale into a small thumbnail.
  */
 export async function generateMemeThumbnail(
   imageSrc: string,
@@ -14,43 +15,73 @@ export async function generateMemeThumbnail(
   filterIntensity: number = 100
 ): Promise<string> {
   return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (value: string) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
     try {
       const img = new Image();
       img.crossOrigin = 'anonymous';
 
       const timeoutId = setTimeout(() => {
-        resolve(imageSrc);
-      }, 1200);
+        finish(imageSrc);
+      }, 2500);
 
       img.onload = () => {
         clearTimeout(timeoutId);
         try {
-          const offscreenCanvas = document.createElement('canvas');
+          // Render the meme exactly as the main canvas/export renderer does.
+          const renderCanvas = document.createElement('canvas');
+          drawMemeOnCanvas(
+            renderCanvas,
+            img,
+            textBoxes,
+            stickers,
+            filter,
+            watermark,
+            filterIntensity
+          );
+
+          // Then downscale the completed render. This avoids drawMemeOnCanvas
+          // overwriting thumbnail dimensions with its 900-1400px render size.
           const maxDim = 240;
-          const origW = img.naturalWidth || 600;
-          const origH = img.naturalHeight || 600;
-          const scale = Math.min(maxDim / origW, maxDim / origH, 1);
+          const renderW = renderCanvas.width || 600;
+          const renderH = renderCanvas.height || 600;
+          const scale = Math.min(maxDim / renderW, maxDim / renderH, 1);
 
-          offscreenCanvas.width = Math.round(origW * scale);
-          offscreenCanvas.height = Math.round(origH * scale);
+          const thumbCanvas = document.createElement('canvas');
+          thumbCanvas.width = Math.max(1, Math.round(renderW * scale));
+          thumbCanvas.height = Math.max(1, Math.round(renderH * scale));
 
-          drawMemeOnCanvas(offscreenCanvas, img, textBoxes, stickers, filter, watermark, filterIntensity);
-          const dataUrl = offscreenCanvas.toDataURL('image/jpeg', 0.82);
-          resolve(dataUrl);
+          const thumbCtx = thumbCanvas.getContext('2d');
+          if (!thumbCtx) {
+            finish(imageSrc);
+            return;
+          }
+
+          thumbCtx.imageSmoothingEnabled = true;
+          thumbCtx.imageSmoothingQuality = 'high';
+          thumbCtx.drawImage(renderCanvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+
+          finish(thumbCanvas.toDataURL('image/jpeg', 0.76));
         } catch (_canvasErr) {
-          // If tainted by CORS, return original imageSrc
-          resolve(imageSrc);
+          // If canvas security/CORS blocks rendering, keep a usable image reference.
+          finish(imageSrc);
         }
       };
 
       img.onerror = () => {
         clearTimeout(timeoutId);
-        resolve(imageSrc);
+        finish(imageSrc);
       };
 
       img.src = imageSrc;
     } catch (_err) {
-      resolve(imageSrc);
+      finish(imageSrc);
     }
   });
 }

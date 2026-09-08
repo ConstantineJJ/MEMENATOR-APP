@@ -106,7 +106,8 @@ export const HistoryAndFavoritesPanel: React.FC<HistoryAndFavoritesPanelProps> =
             meme.textBoxes,
             meme.stickers,
             meme.filter,
-            meme.watermark
+            meme.watermark,
+            meme.filterIntensity ?? 100
           );
           const link = document.createElement('a');
           link.download = `${meme.title || 'meme'}-${Date.now()}.png`;
