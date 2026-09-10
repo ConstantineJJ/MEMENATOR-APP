@@ -492,6 +492,30 @@ html[data-layout-profile^='phone'] * {
   scroll-padding-bottom: var(--memenator-safe-bottom);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Sticker entrance animation (smooth fade-in and scale-in pop)               */
+/* -------------------------------------------------------------------------- */
+@keyframes sticker-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-sticker-in {
+  animation: sticker-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

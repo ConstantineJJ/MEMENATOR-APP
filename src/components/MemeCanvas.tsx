@@ -54,6 +54,7 @@ type DraggingItem = {
   initialScale?: number;
   initialFontSize?: number;
   initialRotation?: number;
+  initialAngle?: number;
   centerX?: number;
   centerY?: number;
 };
@@ -273,6 +274,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
     const rect = (wrapper ?? container)?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 };
     const centerX = rect.left + (stickerXPercent / 100) * rect.width;
     const centerY = rect.top + (stickerYPercent / 100) * rect.height;
+    const initialAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX);
 
     setSelectedStickerId(id);
     onSelectBox(null);
@@ -285,6 +287,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
       initialX: 0,
       initialY: 0,
       initialRotation: currentRotation,
+      initialAngle,
       centerX,
       centerY,
     });
@@ -337,17 +340,14 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
       if (draggingItem.type === 'sticker-rotate' && onUpdateStickerRotation) {
         const cX = draggingItem.centerX ?? draggingItem.startX;
         const cY = draggingItem.centerY ?? draggingItem.startY;
-        const rad = Math.atan2(clientY - cY, clientX - cX);
-        let deg = Math.round((rad * 180) / Math.PI) + 90;
-        deg = ((deg % 360) + 360) % 360;
-        if (deg > 180) deg -= 360;
+        const currentAngle = Math.atan2(clientY - cY, clientX - cX);
+        const deltaRad = currentAngle - (draggingItem.initialAngle ?? currentAngle);
+        let deg = (draggingItem.initialRotation ?? 0) + Math.round((deltaRad * 180) / Math.PI);
+        deg = ((deg % 360) + 540) % 360 - 180;
 
-        const snapAngles = [0, 45, 90, 135, 180, -45, -90, -135, -180];
-        for (const snap of snapAngles) {
-          if (Math.abs(deg - snap) < 4) {
-            deg = snap === -180 ? 180 : snap;
-            break;
-          }
+        // Free continuous rotation with finger (subtle magnetic latch only right at 0 deg)
+        if (Math.abs(deg) <= 1.5) {
+          deg = 0;
         }
 
         onUpdateStickerRotation(draggingItem.id, deg);
@@ -634,127 +634,145 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                     transform: `translate(-50%, -50%) rotate(${currentRotation}deg)`,
                     touchAction: 'none',
                   }}
-                  className={`absolute group cursor-grab active:cursor-grabbing select-none rounded-2xl border-2 transition-all flex items-center justify-center ${
-                    isSelected
-                      ? 'border-amber-400 bg-amber-400/10 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/40 z-30'
-                      : 'border-transparent hover:border-amber-400/50 hover:bg-white/5 z-20'
-                  }`}
+                  className="absolute group select-none pointer-events-auto"
                   title="Кликните для выбора, перетащите по холсту"
                 >
-                  {/* Delete button */}
-                  <button
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onDeleteSticker(sticker.id);
-                    }}
-                    className={`absolute -top-4 -right-4 bg-rose-600 hover:bg-rose-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-lg transition-transform hover:scale-115 active:scale-90 cursor-pointer z-40 ${
-                      isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}
-                    title="Удалить этот стикер"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-
-                  {/* Top rotation handle */}
-                  {isSelected && onUpdateStickerRotation && (
-                    <div
-                      className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center z-40 pointer-events-auto"
-                      onPointerDown={(event) =>
-                        handleRotatePointerDown(
-                          event,
-                          sticker.id,
-                          currentRotation,
-                          sticker.x,
-                          sticker.y
-                        )
-                      }
-                      style={{ touchAction: 'none' }}
-                      title="Потяните для свободного вращения стикера"
-                    >
-                      <div className="w-5 h-5 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-full flex items-center justify-center shadow-lg cursor-grab active:cursor-grabbing hover:scale-115 active:scale-95 transition-transform border border-neutral-950">
-                        <RotateCw className="w-2.5 h-2.5 stroke-[2.5]" />
-                      </div>
-                      <div className="w-0.5 h-2 bg-amber-400/90" />
-                    </div>
-                  )}
-
-                  {/* Scale handle */}
                   <div
-                    onPointerDown={(event) => handleScalePointerDown(event, sticker.id, currentScale)}
-                    style={{ touchAction: 'none' }}
-                    className={`absolute -bottom-2.5 -right-2.5 w-5 h-5 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-full flex items-center justify-center shadow cursor-nwse-resize hover:scale-115 active:scale-95 transition-transform z-40 ${
-                      isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    className={`w-full h-full rounded-2xl border-2 transition-all flex items-center justify-center cursor-grab active:cursor-grabbing animate-sticker-in ${
+                      isSelected
+                        ? 'border-amber-400 bg-amber-400/10 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/40 z-30'
+                        : 'border-transparent hover:border-amber-400/50 hover:bg-white/5 z-20'
                     }`}
-                    title="Потяните для изменения масштаба"
                   >
-                    <span className="text-[10px] font-black">↔</span>
-                  </div>
-
-                  {/* Bottom toolbar */}
-                  <div
-                    className={`absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-neutral-950/95 border border-neutral-700 rounded-full px-2 py-0.5 shadow-2xl pointer-events-auto z-40 transition-opacity whitespace-nowrap ${
-                      isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <button
-                      onClick={() => onUpdateStickerScale(sticker.id, Math.max(0.35, currentScale - 0.2))}
-                      className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer"
-                      title="Уменьшить"
-                    >
-                      <Minus className="w-2.5 h-2.5" />
-                    </button>
-                    <span className="text-[10px] font-bold text-amber-400 font-mono px-0.5">
-                      {Math.round(currentScale * 100)}%
-                    </span>
-                    <button
-                      onClick={() => onUpdateStickerScale(sticker.id, Math.min(3.5, currentScale + 0.2))}
-                      className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer"
-                      title="Увеличить"
-                    >
-                      <Plus className="w-2.5 h-2.5" />
-                    </button>
-
+                    {/* Top-left: Rotation icon and handle for smooth finger rotation */}
                     {onUpdateStickerRotation && (
-                      <>
-                        <span className="w-px h-3 bg-neutral-700 mx-0.5" />
+                      <div
+                        onPointerDown={(event) =>
+                          handleRotatePointerDown(
+                            event,
+                            sticker.id,
+                            currentRotation,
+                            sticker.x,
+                            sticker.y
+                          )
+                        }
+                        style={{ touchAction: 'none' }}
+                        className={`absolute -top-3.5 -left-3.5 sm:-top-4 sm:-left-4 w-7 h-7 sm:w-8 sm:h-8 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-full flex items-center justify-center shadow-xl cursor-grab active:cursor-grabbing hover:scale-115 active:scale-95 transition-transform z-40 border-2 border-neutral-950/90 select-none ${
+                          isSelected
+                            ? 'opacity-100 scale-100'
+                            : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'
+                        }`}
+                        title="Поворачивайте свободно пальцем или мышкой"
+                      >
+                        <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+                      </div>
+                    )}
+
+                    {/* Top-right: Delete button */}
+                    <button
+                      type="button"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDeleteSticker(sticker.id);
+                      }}
+                      className={`absolute -top-3.5 -right-3.5 sm:-top-4 sm:-right-4 w-7 h-7 sm:w-8 sm:h-8 bg-rose-600 hover:bg-rose-500 text-white rounded-full flex items-center justify-center shadow-xl transition-transform hover:scale-115 active:scale-90 cursor-pointer z-40 border-2 border-neutral-950/90 select-none ${
+                        isSelected
+                          ? 'opacity-100 scale-100'
+                          : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'
+                      }`}
+                      title="Удалить этот стикер"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </button>
+
+                    {/* Bottom-right: Scale handle */}
+                    <div
+                      onPointerDown={(event) => handleScalePointerDown(event, sticker.id, currentScale)}
+                      style={{ touchAction: 'none' }}
+                      className={`absolute -bottom-3 -right-3 sm:-bottom-3.5 sm:-right-3.5 w-7 h-7 sm:w-8 sm:h-8 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-full flex items-center justify-center shadow-xl cursor-nwse-resize hover:scale-115 active:scale-95 transition-transform z-40 border-2 border-neutral-950/90 select-none ${
+                        isSelected
+                          ? 'opacity-100 scale-100'
+                          : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'
+                      }`}
+                      title="Потяните для изменения масштаба"
+                    >
+                      <span className="text-xs font-black select-none leading-none">↔</span>
+                    </div>
+
+                    {/* Bottom mini-menu toolbar */}
+                    <div
+                      className={`absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-neutral-950/95 border border-neutral-700/90 rounded-full px-2.5 py-1 shadow-2xl pointer-events-auto z-40 transition-all whitespace-nowrap ${
+                        isSelected
+                          ? 'opacity-100 scale-100'
+                          : 'opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto'
+                      }`}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {/* Left: Rotation icon and controls */}
+                      {onUpdateStickerRotation && (
+                        <div className="flex items-center gap-0.5 pr-1.5 border-r border-neutral-700/80">
+                          <RotateCw className="w-3 h-3 text-amber-400 mr-0.5 shrink-0" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              let next = currentRotation - 15;
+                              if (next < -180) next += 360;
+                              onUpdateStickerRotation(sticker.id, next);
+                            }}
+                            className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer transition-colors"
+                            title="Повернуть против часовой стрелки (-15°)"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </button>
+                          <span
+                            className={`text-[10px] font-bold font-mono px-1 py-0.5 rounded cursor-pointer hover:bg-neutral-800 transition-colors ${
+                              currentRotation !== 0 ? 'text-amber-400' : 'text-neutral-400'
+                            }`}
+                            onClick={() => onUpdateStickerRotation(sticker.id, 0)}
+                            title="Кликните для сброса на 0°"
+                          >
+                            {currentRotation}°
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              let next = currentRotation + 15;
+                              if (next > 180) next += 360;
+                              onUpdateStickerRotation(sticker.id, next);
+                            }}
+                            className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer transition-colors"
+                            title="Повернуть по часовой стрелке (+15°)"
+                          >
+                            <RotateCw className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Right: Scale controls */}
+                      <div className="flex items-center gap-0.5">
                         <button
                           type="button"
-                          onClick={() => {
-                            let next = currentRotation - 15;
-                            if (next < -180) next += 360;
-                            onUpdateStickerRotation(sticker.id, next);
-                          }}
-                          className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer"
-                          title="Повернуть против часовой стрелки (-15°)"
+                          onClick={() => onUpdateStickerScale(sticker.id, Math.max(0.35, currentScale - 0.2))}
+                          className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer transition-colors"
+                          title="Уменьшить"
                         >
-                          <RotateCcw className="w-2.5 h-2.5" />
+                          <Minus className="w-3 h-3" />
                         </button>
-                        <span
-                          className={`text-[10px] font-bold font-mono px-0.5 cursor-pointer hover:underline ${
-                            currentRotation !== 0 ? 'text-amber-400' : 'text-neutral-400'
-                          }`}
-                          onClick={() => onUpdateStickerRotation(sticker.id, 0)}
-                          title="Кликните для сброса на 0°"
-                        >
-                          {currentRotation}°
+                        <span className="text-[10px] font-bold text-amber-400 font-mono px-1">
+                          {Math.round(currentScale * 100)}%
                         </span>
                         <button
                           type="button"
-                          onClick={() => {
-                            let next = currentRotation + 15;
-                            if (next > 180) next -= 360;
-                            onUpdateStickerRotation(sticker.id, next);
-                          }}
-                          className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer"
-                          title="Повернуть по часовой стрелке (+15°)"
+                          onClick={() => onUpdateStickerScale(sticker.id, Math.min(3.5, currentScale + 0.2))}
+                          className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer transition-colors"
+                          title="Увеличить"
                         >
-                          <RotateCw className="w-2.5 h-2.5" />
+                          <Plus className="w-3 h-3" />
                         </button>
-                      </>
-                    )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
