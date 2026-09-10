@@ -3,20 +3,20 @@ import { CheckCircle } from 'lucide-react';
 import { CompositionAnalysisModal } from './components/CompositionAnalysisModal';
 import { CropZoomModal } from './components/CropZoomModal';
 import { HistoryAndFavoritesPanel } from './components/HistoryAndFavoritesPanel';
-import { ImageGenerationModal } from './components/ImageGenerationModal';
-import { ImageGenerationPanel } from './components/ImageGenerationPanel';
 import { ImageUploadBar } from './components/ImageUploadBar';
 import { MagicCaptionModal } from './components/MagicCaptionModal';
 import { MemeCanvas } from './components/MemeCanvas';
 import { MemeTextInputBar } from './components/MemeTextInputBar';
 import { MemeTextStyleBar } from './components/MemeTextStyleBar';
 import { RandomMemesPanel } from './components/RandomMemesPanel';
+import { StickerModal } from './components/StickerModal';
+import { StickerPanel } from './components/StickerPanel';
 import { SuggestedMemesPanel } from './components/SuggestedMemesPanel';
 import { WatermelonLogo } from './components/WatermelonLogo';
 import { AI_STYLES, getAiStyle } from './data/aiStyles';
+import { StickerDefinition } from './data/stickers';
 import { TRENDING_TEMPLATES } from './data/templates';
 import { useCompositionAnalysis } from './hooks/useCompositionAnalysis';
-import { useImageGeneration } from './hooks/useImageGeneration';
 import { useMagicCaptions } from './hooks/useMagicCaptions';
 import {
   MemeDraftSnapshot,
@@ -98,16 +98,9 @@ export default function App() {
   const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
   const [isCropOpen, setIsCropOpen] = useState(false);
   const [isCompositionModalOpen, setIsCompositionModalOpen] = useState(false);
-  const [isImageGenModalOpen, setIsImageGenModalOpen] = useState(false);
+  const [isStickerModalOpen, setIsStickerModalOpen] = useState(false);
   const [guideType, setGuideType] = useState<CompositionGuideType>('none');
   const [notification, setNotification] = useState<string | null>(null);
-
-  const {
-    isGenerating: isGeneratingImage,
-    history: generatedImagesHistory,
-    generateImage,
-    deleteGeneratedImage,
-  } = useImageGeneration();
 
   const showToast = useCallback((message: string) => {
     setNotification(message);
@@ -289,58 +282,25 @@ export default function App() {
     showToast('Исходное фото восстановлено!');
   }, [originalImageSrc, showToast]);
 
-  const handleApplyGeneratedImage = useCallback(
-    (imageUrl: string, promptText?: string) => {
-      startNewMeme();
-      setActiveImageSrc(imageUrl);
-      setOriginalImageSrc(imageUrl);
-      setSelectedTemplateId(null);
-      clearCaptions();
+  const handleAddSticker = useCallback((definition: StickerDefinition) => {
+    const newSticker: MemeSticker = {
+      id: `sticker-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      label: definition.label,
+      emoji: definition.emoji,
+      stickerId: definition.id,
+      type: definition.type,
+      x: 50,
+      y: 50,
+      scale: 1,
+      rotation: 0,
+    };
+    setStickers((previous) => [...previous, newSticker]);
+  }, []);
 
-      pushToHistory({
-        textBoxes,
-        stickers,
-        filter,
-        filterIntensity,
-        watermark,
-        activeImageSrc: imageUrl,
-      });
-
-      showToast(
-        promptText
-          ? `Сгенерированный визуал на холсте: "${promptText.slice(0, 32)}..."`
-          : 'Сгенерированный визуал на холсте!'
-      );
-    },
-    [clearCaptions, filter, filterIntensity, pushToHistory, showToast, startNewMeme, stickers, textBoxes, watermark]
-  );
-
-  const handleGenerateImageFromCaption = useCallback(
-    async (caption: CaptionSuggestion) => {
-      const fullText = [caption.topText, caption.bottomText].filter(Boolean).join(' — ');
-      const styleName = getAiStyle(selectedStyle)?.label || 'интернет-юмор';
-      const promptText = `Комедийная мем-сцена выражающая смысл: "${fullText}". Стиль: ${styleName}, выразительная мимика, читаемая композиция`;
-      showToast('Запущена генерация мем-картинки по выбранной фразе...');
-      const result = await generateImage({ prompt: promptText, aspectRatio: '1:1' });
-      if (result) {
-        showToast('Мем-картинка готова! Она доступна в галерее генератора слева.');
-      }
-    },
-    [generateImage, selectedStyle, showToast]
-  );
-
-  const handleGenerateImageFromStyle = useCallback(
-    async (styleId: string) => {
-      const styleName = getAiStyle(styleId)?.label || 'трендовый юмор';
-      const promptText = `Вирусная мем-сцена в стиле юмора "${styleName}", выразительный персонаж в комичной ситуации, высокое качество`;
-      showToast(`Генерация мем-картинки в стиле «${getAiStyle(styleId)?.compactLabel || 'Тренды'}»...`);
-      const result = await generateImage({ prompt: promptText, aspectRatio: '1:1' });
-      if (result) {
-        showToast('Мем-картинка готова! Она доступна в галерее генератора слева.');
-      }
-    },
-    [generateImage, showToast]
-  );
+  const handleClearStickers = useCallback(() => {
+    setStickers([]);
+    showToast('Все стикеры удалены с холста');
+  }, [showToast]);
 
   const handleApplyCompositionOptimization = useCallback(() => {
     if (!compositionAnalysis?.suggestedTextPlacements) return;
@@ -430,6 +390,15 @@ export default function App() {
     setStickers((previous) => previous.map((sticker) => sticker.id === id ? { ...sticker, scale } : sticker));
   }, []);
 
+  const handleUpdateStickerRotation = useCallback((id: string, rotation: number) => {
+    let normalized = Math.round(rotation % 360);
+    if (normalized > 180) normalized -= 360;
+    if (normalized < -180) normalized += 360;
+    setStickers((previous) =>
+      previous.map((sticker) => (sticker.id === id ? { ...sticker, rotation: normalized } : sticker))
+    );
+  }, []);
+
   const handleDeleteSticker = useCallback((id: string) => {
     setStickers((previous) => previous.filter((sticker) => sticker.id !== id));
   }, []);
@@ -486,20 +455,17 @@ export default function App() {
             />
           </div>
 
-          {/* Image generation section */}
+          {/* Sticker Panel section */}
           <div className="h-[40%] min-h-0 flex-1 flex flex-col overflow-hidden">
-            <ImageGenerationPanel
-              onApplyImageToCanvas={handleApplyGeneratedImage}
-              activeImageSrc={activeImageSrc}
-              textBoxes={textBoxes}
-              captions={captions}
-              selectedStyle={selectedStyle}
+            <StickerPanel
+              stickers={stickers}
+              onAddSticker={handleAddSticker}
+              onClearStickers={handleClearStickers}
+              onUpdateStickerScale={handleUpdateStickerScale}
+              onUpdateStickerRotation={handleUpdateStickerRotation}
+              onDeleteSticker={handleDeleteSticker}
               onShowToast={showToast}
-              onOpenModal={() => setIsImageGenModalOpen(true)}
-              generateImage={generateImage}
-              isGenerating={isGeneratingImage}
-              history={generatedImagesHistory}
-              onDeleteHistoryItem={deleteGeneratedImage}
+              onOpenModal={() => setIsStickerModalOpen(true)}
             />
           </div>
         </aside>
@@ -540,6 +506,7 @@ export default function App() {
               onDeleteBox={handleRemoveTextBox}
               onUpdateStickerPosition={handleUpdateStickerPosition}
               onUpdateStickerScale={handleUpdateStickerScale}
+              onUpdateStickerRotation={handleUpdateStickerRotation}
               onDeleteSticker={handleDeleteSticker}
               onOpenMagicCaptions={handleOpenMagicCaptions}
               onOpenCrop={() => setIsCropOpen(true)}
@@ -580,8 +547,6 @@ export default function App() {
             customContext={customContext}
             onCustomContextChange={setCustomContext}
             onOpenFullModal={() => setIsMagicModalOpen(true)}
-            onGenerateImageFromCaption={handleGenerateImageFromCaption}
-            onGenerateImageFromStyle={handleGenerateImageFromStyle}
           />
         </aside>
       </main>
@@ -620,19 +585,11 @@ export default function App() {
         onSetGuideType={setGuideType}
       />
 
-      <ImageGenerationModal
-        isOpen={isImageGenModalOpen}
-        onClose={() => setIsImageGenModalOpen(false)}
-        onApplyImageToCanvas={handleApplyGeneratedImage}
-        activeImageSrc={activeImageSrc}
-        textBoxes={textBoxes}
-        captions={captions}
-        selectedStyle={selectedStyle}
+      <StickerModal
+        isOpen={isStickerModalOpen}
+        onClose={() => setIsStickerModalOpen(false)}
+        onAddSticker={handleAddSticker}
         onShowToast={showToast}
-        generateImage={generateImage}
-        isGenerating={isGeneratingImage}
-        history={generatedImagesHistory}
-        onDeleteHistoryItem={deleteGeneratedImage}
       />
     </div>
   );

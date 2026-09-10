@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlignCenter, Maximize2, Minus, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { AlignCenter, Maximize2, Minus, Plus, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
 import { CanvasGuides, SnappingGuideState } from './CanvasGuides';
 import { MemeCanvasToolbar } from './MemeCanvasToolbar';
 import { useCanvasExport } from '../hooks/useCanvasExport';
@@ -26,6 +26,7 @@ interface MemeCanvasProps {
   onDeleteBox?: (id: string) => void;
   onUpdateStickerPosition: (id: string, x: number, y: number) => void;
   onUpdateStickerScale: (id: string, newScale: number) => void;
+  onUpdateStickerRotation?: (id: string, newRotation: number) => void;
   onDeleteSticker: (id: string) => void;
   onOpenMagicCaptions: () => void;
   onOpenCrop: () => void;
@@ -43,7 +44,7 @@ interface MemeCanvasProps {
 }
 
 type DraggingItem = {
-  type: 'box' | 'sticker' | 'sticker-scale' | 'box-scale';
+  type: 'box' | 'sticker' | 'sticker-scale' | 'box-scale' | 'sticker-rotate';
   id: string;
   pointerId: number;
   startX: number;
@@ -52,6 +53,9 @@ type DraggingItem = {
   initialY: number;
   initialScale?: number;
   initialFontSize?: number;
+  initialRotation?: number;
+  centerX?: number;
+  centerY?: number;
 };
 
 const EMPTY_GUIDES: SnappingGuideState = {
@@ -84,6 +88,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
   onDeleteBox,
   onUpdateStickerPosition,
   onUpdateStickerScale,
+  onUpdateStickerRotation,
   onDeleteSticker,
   onOpenCrop,
   canUndo = false,
@@ -249,6 +254,42 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
     });
   }, [onSelectBox]);
 
+  const handleRotatePointerDown = useCallback((
+    event: React.PointerEvent<HTMLDivElement>,
+    id: string,
+    currentRotation: number,
+    stickerXPercent: number,
+    stickerYPercent: number
+  ) => {
+    if (!isPrimaryPointer(event)) return;
+    event.stopPropagation();
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {}
+
+    const wrapper = canvasWrapperRef.current;
+    const container = containerRef.current;
+    const rect = (wrapper ?? container)?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 };
+    const centerX = rect.left + (stickerXPercent / 100) * rect.width;
+    const centerY = rect.top + (stickerYPercent / 100) * rect.height;
+
+    setSelectedStickerId(id);
+    onSelectBox(null);
+    setDraggingItem({
+      type: 'sticker-rotate',
+      id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      initialX: 0,
+      initialY: 0,
+      initialRotation: currentRotation,
+      centerX,
+      centerY,
+    });
+  }, [onSelectBox]);
+
   const handleBoxScalePointerDown = useCallback((
     event: React.PointerEvent<HTMLDivElement>,
     id: string,
@@ -290,6 +331,26 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
         const delta = (clientX - draggingItem.startX + clientY - draggingItem.startY) / 80;
         const scale = Math.max(0.35, Math.min(3.5, (draggingItem.initialScale ?? 1) + delta));
         onUpdateStickerScale(draggingItem.id, Math.round(scale * 100) / 100);
+        return;
+      }
+
+      if (draggingItem.type === 'sticker-rotate' && onUpdateStickerRotation) {
+        const cX = draggingItem.centerX ?? draggingItem.startX;
+        const cY = draggingItem.centerY ?? draggingItem.startY;
+        const rad = Math.atan2(clientY - cY, clientX - cX);
+        let deg = Math.round((rad * 180) / Math.PI) + 90;
+        deg = ((deg % 360) + 360) % 360;
+        if (deg > 180) deg -= 360;
+
+        const snapAngles = [0, 45, 90, 135, 180, -45, -90, -135, -180];
+        for (const snap of snapAngles) {
+          if (Math.abs(deg - snap) < 4) {
+            deg = snap === -180 ? 180 : snap;
+            break;
+          }
+        }
+
+        onUpdateStickerRotation(draggingItem.id, deg);
         return;
       }
 
@@ -362,6 +423,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
     onUpdateBoxFontSize,
     onUpdateBoxPosition,
     onUpdateStickerPosition,
+    onUpdateStickerRotation,
     onUpdateStickerScale,
   ]);
 
@@ -552,6 +614,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
             {stickers.map((sticker) => {
               const isSelected = selectedStickerId === sticker.id;
               const currentScale = sticker.scale || 1;
+              const currentRotation = sticker.rotation || 0;
               const boxSize = Math.max(54, Math.round(60 * currentScale));
 
               return (
@@ -568,7 +631,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                     top: `${sticker.y}%`,
                     width: `${boxSize}px`,
                     height: `${boxSize}px`,
-                    transform: 'translate(-50%, -50%)',
+                    transform: `translate(-50%, -50%) rotate(${currentRotation}deg)`,
                     touchAction: 'none',
                   }}
                   className={`absolute group cursor-grab active:cursor-grabbing select-none rounded-2xl border-2 transition-all flex items-center justify-center ${
@@ -578,6 +641,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                   }`}
                   title="Кликните для выбора, перетащите по холсту"
                 >
+                  {/* Delete button */}
                   <button
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => {
@@ -592,6 +656,30 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                     <Trash2 className="w-3 h-3" />
                   </button>
 
+                  {/* Top rotation handle */}
+                  {isSelected && onUpdateStickerRotation && (
+                    <div
+                      className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center z-40 pointer-events-auto"
+                      onPointerDown={(event) =>
+                        handleRotatePointerDown(
+                          event,
+                          sticker.id,
+                          currentRotation,
+                          sticker.x,
+                          sticker.y
+                        )
+                      }
+                      style={{ touchAction: 'none' }}
+                      title="Потяните для свободного вращения стикера"
+                    >
+                      <div className="w-5 h-5 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-full flex items-center justify-center shadow-lg cursor-grab active:cursor-grabbing hover:scale-115 active:scale-95 transition-transform border border-neutral-950">
+                        <RotateCw className="w-2.5 h-2.5 stroke-[2.5]" />
+                      </div>
+                      <div className="w-0.5 h-2 bg-amber-400/90" />
+                    </div>
+                  )}
+
+                  {/* Scale handle */}
                   <div
                     onPointerDown={(event) => handleScalePointerDown(event, sticker.id, currentScale)}
                     style={{ touchAction: 'none' }}
@@ -603,6 +691,7 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                     <span className="text-[10px] font-black">↔</span>
                   </div>
 
+                  {/* Bottom toolbar */}
                   <div
                     className={`absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-neutral-950/95 border border-neutral-700 rounded-full px-2 py-0.5 shadow-2xl pointer-events-auto z-40 transition-opacity whitespace-nowrap ${
                       isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -627,6 +716,45 @@ export const MemeCanvas: React.FC<MemeCanvasProps> = ({
                     >
                       <Plus className="w-2.5 h-2.5" />
                     </button>
+
+                    {onUpdateStickerRotation && (
+                      <>
+                        <span className="w-px h-3 bg-neutral-700 mx-0.5" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            let next = currentRotation - 15;
+                            if (next < -180) next += 360;
+                            onUpdateStickerRotation(sticker.id, next);
+                          }}
+                          className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer"
+                          title="Повернуть против часовой стрелки (-15°)"
+                        >
+                          <RotateCcw className="w-2.5 h-2.5" />
+                        </button>
+                        <span
+                          className={`text-[10px] font-bold font-mono px-0.5 cursor-pointer hover:underline ${
+                            currentRotation !== 0 ? 'text-amber-400' : 'text-neutral-400'
+                          }`}
+                          onClick={() => onUpdateStickerRotation(sticker.id, 0)}
+                          title="Кликните для сброса на 0°"
+                        >
+                          {currentRotation}°
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            let next = currentRotation + 15;
+                            if (next > 180) next -= 360;
+                            onUpdateStickerRotation(sticker.id, next);
+                          }}
+                          className="text-neutral-300 hover:text-amber-400 hover:bg-neutral-800 p-0.5 rounded-full cursor-pointer"
+                          title="Повернуть по часовой стрелке (+15°)"
+                        >
+                          <RotateCw className="w-2.5 h-2.5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               );

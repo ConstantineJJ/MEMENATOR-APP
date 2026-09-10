@@ -6,7 +6,6 @@ import { proxyExternalImage } from './server/imageProxy';
 import { registerCompositionRoute } from './server/routes/composition';
 import { registerEnglishMagicCaptionRoute } from './server/routes/magicCaptionEnglish';
 import { registerMagicCaptionRoute } from './server/routes/magicCaption';
-import { registerTemplateImageRoute } from './server/routes/templateImage';
 import { registerWebMemeRoutes } from './server/routes/webMemes';
 
 dotenv.config();
@@ -30,7 +29,6 @@ async function startServer() {
   registerEnglishMagicCaptionRoute(app);
   registerMagicCaptionRoute(app);
   registerCompositionRoute(app);
-  registerTemplateImageRoute(app);
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

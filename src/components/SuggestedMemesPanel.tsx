@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CaptionSuggestion } from '../types';
 import { AI_STYLES, getAiStyle } from '../data/aiStyles';
-import { Sparkles, Check, Maximize2, ImagePlus } from 'lucide-react';
+import { Sparkles, Check, Maximize2 } from 'lucide-react';
 
 interface SuggestedMemesPanelProps {
   captions: CaptionSuggestion[];
@@ -13,8 +13,6 @@ interface SuggestedMemesPanelProps {
   customContext?: string;
   onCustomContextChange?: (ctx: string) => void;
   onOpenFullModal?: () => void;
-  onGenerateImageFromCaption?: (caption: CaptionSuggestion) => void;
-  onGenerateImageFromStyle?: (styleId: string) => void;
 }
 
 export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
@@ -27,8 +25,6 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
   customContext = '',
   onCustomContextChange,
   onOpenFullModal,
-  onGenerateImageFromCaption,
-  onGenerateImageFromStyle,
 }) => {
   const [appliedIndex, setAppliedIndex] = useState<number | null>(null);
 
@@ -78,22 +74,9 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
       <div className="space-y-1.5 shrink-0">
         <div className="flex items-center justify-between text-[10px]">
           <span className="text-neutral-400 font-bold uppercase tracking-wider">Стиль юмора:</span>
-          <div className="flex items-center gap-2">
-            <span className="text-amber-400 font-medium">
-              {getAiStyle(selectedStyle)?.compactLabel || 'Тренды'}
-            </span>
-            {onGenerateImageFromStyle && (
-              <button
-                type="button"
-                onClick={() => onGenerateImageFromStyle(selectedStyle)}
-                className="text-rose-400 hover:text-rose-300 flex items-center gap-0.5 font-bold transition cursor-pointer"
-                title="Сгенерировать мем-картинку в этом стиле юмора"
-              >
-                <ImagePlus className="w-3 h-3" />
-                <span>Картинка</span>
-              </button>
-            )}
-          </div>
+          <span className="text-amber-400 font-medium">
+            {getAiStyle(selectedStyle)?.compactLabel || 'Тренды'}
+          </span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-32 sm:max-h-36 overflow-y-auto pr-0.5 custom-scrollbar text-[11px]">
@@ -218,20 +201,6 @@ export const SuggestedMemesPanel: React.FC<SuggestedMemesPanelProps> = ({
                       </div>
 
                       <div className="flex items-center gap-1">
-                        {onGenerateImageFromCaption && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onGenerateImageFromCaption(caption);
-                            }}
-                            className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 transition cursor-pointer"
-                            title="Сгенерировать мем-картинку под эту фразу"
-                          >
-                            <ImagePlus className="w-3 h-3" />
-                            <span className="hidden sm:inline">Картинка</span>
-                          </button>
-                        )}
                         <button
                           type="button"
                           className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
